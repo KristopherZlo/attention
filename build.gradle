@@ -47,13 +47,9 @@ loom {
 		client {
 			client()
 			name = "Attention Client"
-			runDir = "run/shared-client"
+			runDir = project.findProperty("attention_run_dir") ?: "run/shared-client"
 		}
 	}
-}
-
-repositories {
-	mavenCentral()
 }
 
 dependencies {
@@ -89,4 +85,3 @@ java {
 test {
 	useJUnitPlatform()
 }
-

@@ -28,11 +28,39 @@ $env:JAVA_HOME = $JavaHome
 $env:PATH = "$JavaHome\bin;$env:PATH"
 
 $root = Split-Path -Parent $PSScriptRoot
-$gradle = Join-Path $root "gradlew.bat"
-
-& $gradle runClient `
-	"-Pminecraft_version=$McVersion" `
-	"-Pyarn_mappings=$($yarnMappings[$McVersion])" `
-	"-Pfabric_api_version=$($fabricApiVersions[$McVersion])" `
+$safeRoot = Join-Path $env:TEMP "attention-gradle-root"
+$gradleArgs = @(
+	"runClient",
+	"-Pminecraft_version=$McVersion",
+	"-Pyarn_mappings=$($yarnMappings[$McVersion])",
+	"-Pfabric_api_version=$($fabricApiVersions[$McVersion])",
 	"--no-daemon"
+)
 
+if ($root.Contains("!")) {
+	if (Test-Path $safeRoot) {
+		$item = Get-Item $safeRoot -Force
+		if ($item.LinkType) {
+			[System.IO.Directory]::Delete($safeRoot)
+		}
+	}
+
+	New-Item -ItemType Directory -Force -Path $safeRoot | Out-Null
+	& robocopy $root $safeRoot /MIR /XD .git .gradle build run /NFL /NDL /NJH /NJS /NP | Out-Null
+	if ($LASTEXITCODE -gt 7) {
+		throw "Failed to prepare safe Gradle workspace. Robocopy exit code: $LASTEXITCODE"
+	}
+
+	$gradleArgs += "-Pattention_run_dir=$(Join-Path $root 'run\shared-client')"
+} else {
+	$safeRoot = $root
+}
+
+$gradle = Join-Path $safeRoot "gradlew.bat"
+
+Push-Location $safeRoot
+try {
+	& $gradle @gradleArgs
+} finally {
+	Pop-Location
+}

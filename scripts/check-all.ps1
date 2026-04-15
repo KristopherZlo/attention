@@ -12,7 +12,26 @@ $env:JAVA_HOME = $JavaHome
 $env:PATH = "$JavaHome\bin;$env:PATH"
 
 $root = Split-Path -Parent $PSScriptRoot
-$gradle = Join-Path $root "gradlew.bat"
+$safeRoot = Join-Path $env:TEMP "attention-gradle-root"
+
+if ($root.Contains("!")) {
+	if (Test-Path $safeRoot) {
+		$item = Get-Item $safeRoot -Force
+		if ($item.LinkType) {
+			[System.IO.Directory]::Delete($safeRoot)
+		}
+	}
+
+	New-Item -ItemType Directory -Force -Path $safeRoot | Out-Null
+	& robocopy $root $safeRoot /MIR /XD .git .gradle build run /NFL /NDL /NJH /NJS /NP | Out-Null
+	if ($LASTEXITCODE -gt 7) {
+		throw "Failed to prepare safe Gradle workspace. Robocopy exit code: $LASTEXITCODE"
+	}
+} else {
+	$safeRoot = $root
+}
+
+$gradle = Join-Path $safeRoot "gradlew.bat"
 $versions = @("1.21.8", "1.21.9", "1.21.10", "1.21.11")
 $fabricApiVersions = @{
 	"1.21.8" = "0.136.1+1.21.8"
@@ -27,13 +46,24 @@ $yarnMappings = @{
 	"1.21.11" = "1.21.11+build.4"
 }
 
-& $gradle clean test build --no-daemon
+Push-Location $safeRoot
+try {
+	& $gradle clean test build --no-daemon
 
-foreach ($version in $versions) {
-	& $gradle build `
-		"-Pminecraft_version=$version" `
-		"-Pyarn_mappings=$($yarnMappings[$version])" `
-		"-Pfabric_api_version=$($fabricApiVersions[$version])" `
-		"--no-daemon"
+	foreach ($version in $versions) {
+		& $gradle build `
+			"-Pminecraft_version=$version" `
+			"-Pyarn_mappings=$($yarnMappings[$version])" `
+			"-Pfabric_api_version=$($fabricApiVersions[$version])" `
+			"--no-daemon"
+	}
+} finally {
+	Pop-Location
 }
 
+if ($safeRoot -ne $root) {
+	$sourceLibs = Join-Path $safeRoot "build\libs"
+	$targetLibs = Join-Path $root "build\libs"
+	New-Item -ItemType Directory -Force -Path $targetLibs | Out-Null
+	Copy-Item -Path (Join-Path $sourceLibs "*") -Destination $targetLibs -Force
+}
