@@ -1,5 +1,6 @@
 package dev.creas.attention.client.threat;
 
+import dev.creas.attention.AttentionMod;
 import dev.creas.attention.client.hud.AttentionMarkerController;
 import dev.creas.attention.threat.ThreatKind;
 import dev.creas.attention.threat.ThreatMath;
@@ -12,10 +13,13 @@ import java.util.function.DoubleSupplier;
 
 public final class AttentionThreatTracker {
 	private static final int SCAN_INTERVAL_TICKS = 4;
+	private static final long SOUND_COOLDOWN_TICKS = 20L;
 
 	private final LiveThreatDetector detector;
 	private final DoubleSupplier detectionRadiusSupplier;
 	private int scanCooldown;
+	private long tickCounter;
+	private long lastSoundTick = Long.MIN_VALUE / 4;
 	private TrackedThreat trackedThreat;
 
 	public AttentionThreatTracker(LiveThreatDetector detector, DoubleSupplier detectionRadiusSupplier) {
@@ -24,6 +28,8 @@ public final class AttentionThreatTracker {
 	}
 
 	public void tick(MinecraftClient client, AttentionMarkerController markerController) {
+		tickCounter++;
+
 		if (markerController.isDemoModeEnabled()) {
 			clear();
 			return;
@@ -59,6 +65,7 @@ public final class AttentionThreatTracker {
 				threatSelection.snapshot().entityId(),
 				threatSelection.snapshot().kind()
 		);
+		TrackedThreat previousThreat = trackedThreat;
 		boolean changed = !newThreat.equals(trackedThreat);
 
 		trackedThreat = newThreat;
@@ -66,6 +73,9 @@ public final class AttentionThreatTracker {
 
 		if (changed) {
 			markerController.triggerPulse();
+			if (previousThreat == null) {
+				playThreatPing(client);
+			}
 		} else {
 			markerController.setVisible(true);
 		}
@@ -100,7 +110,15 @@ public final class AttentionThreatTracker {
 		scanCooldown = 0;
 	}
 
+	private void playThreatPing(MinecraftClient client) {
+		if (tickCounter - lastSoundTick < SOUND_COOLDOWN_TICKS || client.player == null) {
+			return;
+		}
+
+		lastSoundTick = tickCounter;
+		client.player.playSound(AttentionMod.THREAT_PING, 0.85F, 1.0F);
+	}
+
 	private record TrackedThreat(int entityId, ThreatKind kind) {
 	}
 }
-

@@ -11,6 +11,9 @@
 	"license": "MIT",
 	"environment": "client",
 	"entrypoints": {
+		"main": [
+			"dev.creas.attention.AttentionMod"
+		],
 		"client": [
 			"dev.creas.attention.client.AttentionClient"
 		]
@@ -22,4 +25,3 @@
 		"fabric-api": "*"
 	}
 }
-
