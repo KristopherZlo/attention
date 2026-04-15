@@ -1,0 +1,92 @@
+plugins {
+	id "net.fabricmc.fabric-loom-remap" version "${loom_version}"
+	id "maven-publish"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+	archivesName = project.archives_base_name
+}
+
+def supportedMinecraftVersions = ["1.21.8", "1.21.9", "1.21.10", "1.21.11"]
+def fabricApiVersions = [
+		"1.21.8" : "0.136.1+1.21.8",
+		"1.21.9" : "0.134.1+1.21.9",
+		"1.21.10": "0.138.4+1.21.10",
+		"1.21.11": "0.141.3+1.21.11"
+]
+def yarnMappings = [
+		"1.21.8" : "1.21.8+build.1",
+		"1.21.9" : "1.21.9+build.1",
+		"1.21.10": "1.21.10+build.3",
+		"1.21.11": "1.21.11+build.4"
+]
+
+def selectedMinecraftVersion = project.findProperty("minecraft_version").toString()
+
+if (!supportedMinecraftVersions.contains(selectedMinecraftVersion)) {
+	throw new GradleException("Unsupported Minecraft version: ${selectedMinecraftVersion}. Supported: ${supportedMinecraftVersions.join(', ')}")
+}
+
+def selectedFabricApiVersion = project.findProperty("fabric_api_version") ?: fabricApiVersions[selectedMinecraftVersion]
+def selectedYarnMappings = project.findProperty("yarn_mappings") ?: yarnMappings[selectedMinecraftVersion]
+
+loom {
+	splitEnvironmentSourceSets()
+
+	mods {
+		"attention" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+
+	runs {
+		client {
+			client()
+			name = "Attention Client"
+			runDir = "run/shared-client"
+		}
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${selectedMinecraftVersion}"
+	mappings "net.fabricmc:yarn:${selectedYarnMappings}:v2"
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${selectedFabricApiVersion}"
+
+	testImplementation platform("org.junit:junit-bom:5.10.2")
+	testImplementation "org.junit.jupiter:junit-jupiter"
+}
+
+processResources {
+	inputs.property "version", project.version
+
+	filesMatching("fabric.mod.json") {
+		expand "version": project.version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = 21
+}
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+
+	withSourcesJar()
+}
+
+test {
+	useJUnitPlatform()
+}
+

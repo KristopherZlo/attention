@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"id": "attention",
+	"version": "${version}",
+	"name": "Attention!",
+	"description": "A client-side warning marker that reduces sudden surprises around the crosshair.",
+	"authors": [
+		"creas"
+	],
+	"contact": {},
+	"license": "MIT",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"dev.creas.attention.client.AttentionClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.18.2",
+		"minecraft": ">=1.21.8 <1.21.12",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
+
