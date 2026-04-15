@@ -47,7 +47,7 @@ loom {
 		client {
 			client()
 			name = "Attention Client"
-			runDir = project.findProperty("attention_run_dir") ?: "run/shared-client"
+			runDir = "run/shared-client"
 		}
 	}
 }

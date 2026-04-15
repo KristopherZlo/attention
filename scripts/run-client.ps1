@@ -51,7 +51,20 @@ if ($root.Contains("!")) {
 		throw "Failed to prepare safe Gradle workspace. Robocopy exit code: $LASTEXITCODE"
 	}
 
-	$gradleArgs += "-Pattention_run_dir=$(Join-Path $root 'run\shared-client')"
+	$safeRunRoot = Join-Path $safeRoot "run"
+	$safeSharedRunDir = Join-Path $safeRunRoot "shared-client"
+	$realSharedRunDir = Join-Path $root "run\shared-client"
+	New-Item -ItemType Directory -Force -Path $safeRunRoot | Out-Null
+	New-Item -ItemType Directory -Force -Path $realSharedRunDir | Out-Null
+	if (Test-Path $safeSharedRunDir) {
+		$item = Get-Item $safeSharedRunDir -Force
+		if ($item.LinkType) {
+			[System.IO.Directory]::Delete($safeSharedRunDir)
+		} else {
+			Remove-Item $safeSharedRunDir -Recurse -Force
+		}
+	}
+	New-Item -ItemType Junction -Path $safeSharedRunDir -Target $realSharedRunDir | Out-Null
 } else {
 	$safeRoot = $root
 }
