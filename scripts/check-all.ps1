@@ -64,6 +64,9 @@ try {
 if ($safeRoot -ne $root) {
 	$sourceLibs = Join-Path $safeRoot "build\libs"
 	$targetLibs = Join-Path $root "build\libs"
-	New-Item -ItemType Directory -Force -Path $targetLibs | Out-Null
-	Copy-Item -Path (Join-Path $sourceLibs "*") -Destination $targetLibs -Force
+
+	if (Test-Path $sourceLibs) {
+		New-Item -ItemType Directory -Force -Path $targetLibs | Out-Null
+		Copy-Item -Path (Join-Path $sourceLibs "*") -Destination $targetLibs -Force
+	}
 }
