@@ -2,6 +2,7 @@ package dev.creas.attention.client.command;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
+import dev.creas.attention.client.config.AttentionConfigManager;
 import dev.creas.attention.client.hud.AttentionMarkerController;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
@@ -11,9 +12,15 @@ public final class AttentionClientCommands {
 	private AttentionClientCommands() {
 	}
 
-	public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher, AttentionMarkerController markerController) {
+	public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher, AttentionMarkerController markerController, AttentionConfigManager configManager) {
 		dispatcher.register(
 				ClientCommandManager.literal("attention")
+						.then(ClientCommandManager.literal("reload")
+								.executes(context -> {
+									double radius = configManager.load().detectionRadiusBlocks();
+									context.getSource().sendFeedback(Text.literal("Attention config reloaded. Radius: " + radius + " blocks."));
+									return 1;
+								}))
 						.then(ClientCommandManager.literal("demo")
 								.then(ClientCommandManager.literal("on")
 										.executes(context -> {
@@ -46,4 +53,3 @@ public final class AttentionClientCommands {
 		);
 	}
 }
-

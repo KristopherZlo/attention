@@ -1,6 +1,7 @@
 package dev.creas.attention.client;
 
 import dev.creas.attention.client.command.AttentionClientCommands;
+import dev.creas.attention.client.config.AttentionConfigManager;
 import dev.creas.attention.client.hud.AttentionMarkerController;
 import dev.creas.attention.client.hud.AttentionMarkerRenderer;
 import dev.creas.attention.client.threat.AttentionThreatTracker;
@@ -15,18 +16,22 @@ import net.minecraft.util.Identifier;
 
 public final class AttentionClient implements ClientModInitializer {
 	private static final Identifier MARKER_LAYER = Identifier.of("attention", "crosshair_marker");
-	private static final double DEFAULT_DETECTION_RADIUS = 24.0D;
 
+	private final AttentionConfigManager configManager = new AttentionConfigManager();
 	private final AttentionMarkerController markerController = new AttentionMarkerController();
 	private final AttentionMarkerRenderer markerRenderer = new AttentionMarkerRenderer(markerController.getState());
-	private final AttentionThreatTracker threatTracker = new AttentionThreatTracker(new LiveThreatDetector(), () -> DEFAULT_DETECTION_RADIUS);
+	private final AttentionThreatTracker threatTracker = new AttentionThreatTracker(
+			new LiveThreatDetector(),
+			() -> configManager.getConfig().detectionRadiusBlocks()
+	);
 
 	@Override
 	public void onInitializeClient() {
+		configManager.load();
 		HudElementRegistry.attachElementAfter(VanillaHudElements.CROSSHAIR, MARKER_LAYER, markerRenderer::render);
 		ClientTickEvents.END_CLIENT_TICK.register(this::onEndClientTick);
 		ClientCommandRegistrationCallback.EVENT.register(
-				(dispatcher, registryAccess) -> AttentionClientCommands.register(dispatcher, markerController)
+				(dispatcher, registryAccess) -> AttentionClientCommands.register(dispatcher, markerController, configManager)
 		);
 	}
 
