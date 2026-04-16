@@ -1,5 +1,6 @@
 package dev.creas.attention.client.threat;
 
+import dev.creas.attention.client.config.AttentionConfig;
 import dev.creas.attention.threat.ThreatKind;
 import dev.creas.attention.threat.ThreatMath;
 import dev.creas.attention.threat.ThreatSelection;
@@ -16,30 +17,40 @@ public final class LiveThreatDetector {
 	private static final float FOV_MARGIN_DEGREES = 8.0F;
 	private static final double APPROACH_DOT_THRESHOLD = 0.6D;
 
-	public Optional<ThreatSelection> detect(MinecraftClient client, double detectionRadiusBlocks) {
+	public Optional<ThreatSelection> detect(MinecraftClient client, AttentionConfig config) {
 		PlayerEntity localPlayer = client.player;
 
 		if (localPlayer == null || client.world == null) {
 			return Optional.empty();
 		}
 
-		Stream<ThreatSnapshot> hostileThreats = client.world.getEntitiesByClass(
-				HostileEntity.class,
-				localPlayer.getBoundingBox().expand(detectionRadiusBlocks),
-				HostileEntity::isAlive
-		).stream().flatMap(hostile -> createHostileThreat(client, localPlayer, hostile, detectionRadiusBlocks).stream());
+		double detectionRadiusBlocks = config.detectionRadiusBlocks();
+		Stream<ThreatSnapshot> hostileThreats = Stream.empty();
+		Stream<ThreatSnapshot> playerThreats = Stream.empty();
 
-		Stream<ThreatSnapshot> playerThreats = client.world.getPlayers().stream()
-				.filter(otherPlayer -> otherPlayer.isAlive() && !otherPlayer.isSpectator() && otherPlayer != localPlayer)
-				.flatMap(otherPlayer -> createPlayerThreat(client, localPlayer, otherPlayer, detectionRadiusBlocks).stream());
+		if (config.reactToTargetingHostiles() || config.reactToApproachingHostiles()) {
+			hostileThreats = client.world.getEntitiesByClass(
+					HostileEntity.class,
+					localPlayer.getBoundingBox().expand(detectionRadiusBlocks),
+					HostileEntity::isAlive
+			).stream().flatMap(hostile -> createHostileThreat(client, localPlayer, hostile, config).stream());
+		}
+
+		if (config.reactToPlayers()) {
+			playerThreats = client.world.getPlayers().stream()
+					.filter(otherPlayer -> otherPlayer.isAlive() && !otherPlayer.isSpectator() && otherPlayer != localPlayer)
+					.filter(otherPlayer -> config.allowsPlayerName(otherPlayer.getGameProfile().name()))
+					.flatMap(otherPlayer -> createPlayerThreat(client, localPlayer, otherPlayer, detectionRadiusBlocks).stream());
+		}
 
 		return ThreatMath.selectPrimaryThreat(Stream.concat(hostileThreats, playerThreats));
 	}
 
-	public boolean isStillRelevant(MinecraftClient client, ThreatKind kind, Entity entity, float relativeYaw, double detectionRadiusBlocks) {
+	public boolean isStillRelevant(MinecraftClient client, AttentionConfig config, ThreatKind kind, Entity entity, float relativeYaw) {
 		PlayerEntity localPlayer = client.player;
+		double detectionRadiusBlocks = config.detectionRadiusBlocks();
 
-		if (localPlayer == null || entity.squaredDistanceTo(localPlayer) > (detectionRadiusBlocks * detectionRadiusBlocks)) {
+		if (localPlayer == null || !config.reactsTo(kind) || entity.squaredDistanceTo(localPlayer) > (detectionRadiusBlocks * detectionRadiusBlocks)) {
 			return false;
 		}
 
@@ -50,11 +61,37 @@ public final class LiveThreatDetector {
 		return switch (kind) {
 			case HOSTILE_TARGETING -> entity instanceof HostileEntity hostile && hostile.getTarget() == localPlayer;
 			case HOSTILE_APPROACHING -> entity instanceof HostileEntity hostile && isHostileApproaching(localPlayer, hostile);
-			case OFFSCREEN_PLAYER -> entity instanceof PlayerEntity otherPlayer && otherPlayer.isAlive() && !otherPlayer.isSpectator();
+			case OFFSCREEN_PLAYER -> entity instanceof PlayerEntity otherPlayer
+					&& otherPlayer.isAlive()
+					&& !otherPlayer.isSpectator()
+					&& config.allowsPlayerName(otherPlayer.getGameProfile().name());
 		};
 	}
 
-	private Optional<ThreatSnapshot> createHostileThreat(MinecraftClient client, PlayerEntity localPlayer, HostileEntity hostile, double detectionRadiusBlocks) {
+	public boolean isStillTrackable(MinecraftClient client, AttentionConfig config, ThreatKind kind, Entity entity, float relativeYaw) {
+		PlayerEntity localPlayer = client.player;
+		double detectionRadiusBlocks = config.detectionRadiusBlocks();
+
+		if (localPlayer == null || entity.squaredDistanceTo(localPlayer) > (detectionRadiusBlocks * detectionRadiusBlocks)) {
+			return false;
+		}
+
+		if (!ThreatMath.isOutsideView(relativeYaw, getHorizontalFov(client), FOV_MARGIN_DEGREES)) {
+			return false;
+		}
+
+		return switch (kind) {
+			case HOSTILE_TARGETING, HOSTILE_APPROACHING -> entity instanceof HostileEntity
+					&& (config.reactToTargetingHostiles() || config.reactToApproachingHostiles());
+			case OFFSCREEN_PLAYER -> entity instanceof PlayerEntity otherPlayer
+					&& otherPlayer.isAlive()
+					&& !otherPlayer.isSpectator()
+					&& config.allowsPlayerName(otherPlayer.getGameProfile().name());
+		};
+	}
+
+	private Optional<ThreatSnapshot> createHostileThreat(MinecraftClient client, PlayerEntity localPlayer, HostileEntity hostile, AttentionConfig config) {
+		double detectionRadiusBlocks = config.detectionRadiusBlocks();
 		double distanceSq = hostile.squaredDistanceTo(localPlayer);
 
 		if (distanceSq > (detectionRadiusBlocks * detectionRadiusBlocks)) {
@@ -67,11 +104,11 @@ public final class LiveThreatDetector {
 			return Optional.empty();
 		}
 
-		if (hostile.getTarget() == localPlayer) {
+		if (config.reactToTargetingHostiles() && hostile.getTarget() == localPlayer) {
 			return Optional.of(new ThreatSnapshot(hostile.getId(), ThreatKind.HOSTILE_TARGETING, distanceSq, relativeYaw));
 		}
 
-		if (isHostileApproaching(localPlayer, hostile)) {
+		if (config.reactToApproachingHostiles() && isHostileApproaching(localPlayer, hostile)) {
 			return Optional.of(new ThreatSnapshot(hostile.getId(), ThreatKind.HOSTILE_APPROACHING, distanceSq, relativeYaw));
 		}
 
