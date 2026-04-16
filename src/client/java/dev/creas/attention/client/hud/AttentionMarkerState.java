@@ -5,8 +5,8 @@ public final class AttentionMarkerState {
 	private float displayAngleDeg = 180.0F;
 	private float targetAngleDeg = 180.0F;
 	private float alpha;
-	private float scale = 0.92F;
-	private float pulseTime;
+	private float displayRadiusPx = 76.0F;
+	private float targetRadiusPx = 76.0F;
 
 	public boolean isVisible() {
 		return visible;
@@ -40,19 +40,19 @@ public final class AttentionMarkerState {
 		this.alpha = alpha;
 	}
 
-	public float getScale() {
-		return scale;
+	public float getDisplayRadiusPx() {
+		return displayRadiusPx;
 	}
 
-	public void setScale(float scale) {
-		this.scale = scale;
+	public void setDisplayRadiusPx(float displayRadiusPx) {
+		this.displayRadiusPx = displayRadiusPx;
 	}
 
-	public float getPulseTime() {
-		return pulseTime;
+	public float getTargetRadiusPx() {
+		return targetRadiusPx;
 	}
 
-	public void setPulseTime(float pulseTime) {
-		this.pulseTime = pulseTime;
+	public void setTargetRadiusPx(float targetRadiusPx) {
+		this.targetRadiusPx = targetRadiusPx;
 	}
 }
