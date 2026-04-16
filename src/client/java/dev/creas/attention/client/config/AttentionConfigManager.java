@@ -57,4 +57,9 @@ public final class AttentionConfigManager {
 			LOGGER.warn("Failed to save attention config to {}", configPath, exception);
 		}
 	}
+
+	public void setConfig(AttentionConfig config) {
+		this.config = config.sanitize();
+		save();
+	}
 }

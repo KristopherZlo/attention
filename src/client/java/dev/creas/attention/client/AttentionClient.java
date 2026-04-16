@@ -28,6 +28,7 @@ public final class AttentionClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		configManager.load();
+		markerController.setConfiguredRadius((float) configManager.getConfig().indicatorRadiusPixels());
 		HudElementRegistry.attachElementAfter(VanillaHudElements.CROSSHAIR, MARKER_LAYER, markerRenderer::render);
 		ClientTickEvents.END_CLIENT_TICK.register(this::onEndClientTick);
 		ClientCommandRegistrationCallback.EVENT.register(
@@ -36,6 +37,7 @@ public final class AttentionClient implements ClientModInitializer {
 	}
 
 	private void onEndClientTick(MinecraftClient client) {
+		markerController.setConfiguredRadius((float) configManager.getConfig().indicatorRadiusPixels());
 		threatTracker.tick(client, markerController);
 		markerController.tick();
 	}

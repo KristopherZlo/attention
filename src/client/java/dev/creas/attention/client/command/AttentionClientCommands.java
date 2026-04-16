@@ -4,6 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
 import dev.creas.attention.client.config.AttentionConfigManager;
 import dev.creas.attention.client.hud.AttentionMarkerController;
+import dev.creas.attention.client.screen.AttentionSettingsScreen;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.text.Text;
@@ -17,8 +18,14 @@ public final class AttentionClientCommands {
 				ClientCommandManager.literal("attention")
 						.then(ClientCommandManager.literal("reload")
 								.executes(context -> {
-									double radius = configManager.load().detectionRadiusBlocks();
-									context.getSource().sendFeedback(Text.literal("Attention config reloaded. Radius: " + radius + " blocks."));
+									var config = configManager.load();
+									context.getSource().sendFeedback(Text.literal("Attention config reloaded. Detection radius: " + config.detectionRadiusBlocks() + " blocks. Marker radius: " + Math.round(config.indicatorRadiusPixels()) + " px."));
+									return 1;
+								}))
+						.then(ClientCommandManager.literal("settings")
+								.executes(context -> {
+									FabricClientCommandSource source = context.getSource();
+									source.getClient().setScreen(new AttentionSettingsScreen(source.getClient().currentScreen, configManager));
 									return 1;
 								}))
 						.then(ClientCommandManager.literal("demo")
