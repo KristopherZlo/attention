@@ -21,7 +21,7 @@ class ThreatMathTest {
 	@Test
 	void markerAnglePreservesWrappedRelativeYaw() {
 		assertEquals(180.0F, ThreatMath.markerAngleDegrees(-180.0F), 0.001F);
-		assertEquals(-90.0F, ThreatMath.markerAngleDegrees(270.0F), 0.001F);
+		assertEquals(90.0F, ThreatMath.markerAngleDegrees(270.0F), 0.001F);
 	}
 
 	@Test
@@ -40,7 +40,7 @@ class ThreatMathTest {
 	}
 
 	@Test
-	void primaryThreatPrefersPriorityThenDistance() {
+	void primaryThreatPrefersNearestThreatRegardlessOfKind() {
 		Optional<ThreatSelection> selection = ThreatMath.selectPrimaryThreat(Stream.of(
 				new ThreatSnapshot(4, ThreatKind.HOSTILE_APPROACHING, 4.0D, 180.0F),
 				new ThreatSnapshot(3, ThreatKind.OFFSCREEN_PLAYER, 1.0D, -90.0F),
@@ -48,8 +48,8 @@ class ThreatMathTest {
 		));
 
 		assertTrue(selection.isPresent());
-		assertEquals(ThreatKind.HOSTILE_TARGETING, selection.get().snapshot().kind());
-		assertEquals(30.0F, selection.get().markerAngleDeg(), 0.001F);
+		assertEquals(ThreatKind.OFFSCREEN_PLAYER, selection.get().snapshot().kind());
+		assertEquals(90.0F, selection.get().markerAngleDeg(), 0.001F);
 	}
 
 	@Test
@@ -61,6 +61,6 @@ class ThreatMathTest {
 
 		assertTrue(selection.isPresent());
 		assertEquals(11, selection.get().snapshot().entityId());
-		assertEquals(90.0F, selection.get().markerAngleDeg(), 0.001F);
+		assertEquals(-90.0F, selection.get().markerAngleDeg(), 0.001F);
 	}
 }

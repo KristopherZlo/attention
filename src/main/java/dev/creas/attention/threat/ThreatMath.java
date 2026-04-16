@@ -32,7 +32,7 @@ public final class ThreatMath {
 	}
 
 	public static float markerAngleDegrees(float relativeYawDeg) {
-		return normalizeAngle(relativeYawDeg);
+		return normalizeAngle(-relativeYawDeg);
 	}
 
 	public static boolean isOutsideView(float relativeYawDeg, float horizontalFovDeg, float marginDeg) {
@@ -63,14 +63,8 @@ public final class ThreatMath {
 	public static Optional<ThreatSelection> selectPrimaryThreat(Stream<ThreatSnapshot> threats) {
 		return threats
 				.min(Comparator
-						.comparingInt((ThreatSnapshot threat) -> switch (threat.kind()) {
-							case HOSTILE_TARGETING -> 0;
-							case OFFSCREEN_PLAYER -> 1;
-							case HOSTILE_APPROACHING -> 2;
-						})
-						.thenComparingDouble(ThreatSnapshot::distanceSq)
+						.comparingDouble(ThreatSnapshot::distanceSq)
 						.thenComparingInt(ThreatSnapshot::entityId))
 				.map(threat -> new ThreatSelection(threat, markerAngleDegrees(threat.relativeYawDeg())));
 	}
 }
-
