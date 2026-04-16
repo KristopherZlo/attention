@@ -1,20 +1,30 @@
 package dev.creas.attention.client.hud;
 
+import dev.creas.attention.marker.MarkerRadiusMath;
+
 public final class AttentionMarkerController {
-	private static final float ROTATION_LERP = 0.24F;
-	private static final float ALPHA_LERP = 0.22F;
-	private static final float RADIUS_LERP = 0.28F;
-	private static final float DEFAULT_RADIUS_PX = 60.0F;
-	private static final float REVEAL_SLIDE_DISTANCE_PX = 18.0F;
-	private static final float PULSE_SLIDE_DISTANCE_PX = 8.0F;
-	private static final float MIN_RADIUS_PX = 24.0F;
+	private static final float ALPHA_LERP = 0.12F;
+	private static final float ANGLE_LERP = 0.22F;
+	private static final float RADIUS_LERP = 0.14F;
+	private static final float BREATH_BASE_ALPHA = 0.94F;
+	private static final float BREATH_ALPHA_AMPLITUDE = 0.04F;
+	private static final float BREATH_SPEED = 0.115F;
+	private static final float DEFAULT_MIN_RADIUS_PX = 10.0F;
+	private static final float DEFAULT_MAX_RADIUS_PX = 16.0F;
+	private static final float MIN_REVEAL_SLIDE_DISTANCE_PX = 8.0F;
+	private static final float REVEAL_SLIDE_FACTOR = 0.42F;
+	private static final float MIN_RADIUS_PX = 8.0F;
+	private static final float HIDDEN_ALPHA_THRESHOLD = 0.02F;
 
 	private final AttentionMarkerState state = new AttentionMarkerState();
 	private boolean demoMode;
-	private float configuredRadiusPx = DEFAULT_RADIUS_PX;
+	private long tickCounter;
+	private float configuredMinRadiusPx = DEFAULT_MIN_RADIUS_PX;
+	private float configuredMaxRadiusPx = DEFAULT_MAX_RADIUS_PX;
+	private float threatDistanceFactor = 1.0F;
 
 	public AttentionMarkerController() {
-		float hiddenRadius = hiddenRadiusFor(configuredRadiusPx);
+		float hiddenRadius = hiddenRadiusFor(configuredMaxRadiusPx);
 		state.setDisplayRadiusPx(hiddenRadius);
 		state.setTargetRadiusPx(hiddenRadius);
 	}
@@ -23,12 +33,17 @@ public final class AttentionMarkerController {
 		return state;
 	}
 
+	public boolean hasFadedOut() {
+		return !state.isVisible() && state.getAlpha() < HIDDEN_ALPHA_THRESHOLD;
+	}
+
 	public boolean isDemoModeEnabled() {
 		return demoMode;
 	}
 
 	public void enableDemoMode() {
 		demoMode = true;
+		resetThreatDistance();
 		setVisible(true);
 	}
 
@@ -39,14 +54,29 @@ public final class AttentionMarkerController {
 
 	public void setDemoAngle(float angleDegrees) {
 		enableDemoMode();
-		state.setTargetAngleDeg(normalizeRelativeAngle(angleDegrees));
+		setTargetAngle(angleDegrees);
 	}
 
-	public void setConfiguredRadius(float radiusPx) {
-		configuredRadiusPx = Math.max(MIN_RADIUS_PX, radiusPx);
+	public void setConfiguredRadii(float minRadiusPx, float maxRadiusPx) {
+		configuredMaxRadiusPx = Math.max(MIN_RADIUS_PX, maxRadiusPx);
+		configuredMinRadiusPx = Math.min(Math.max(8.0F, minRadiusPx), configuredMaxRadiusPx);
 
-		if (!state.isVisible() && state.getAlpha() < 0.02F) {
-			float hiddenRadius = hiddenRadiusFor(configuredRadiusPx);
+		if (!state.isVisible() && state.getAlpha() < HIDDEN_ALPHA_THRESHOLD) {
+			float hiddenRadius = hiddenRadiusFor(configuredMaxRadiusPx);
+			state.setDisplayRadiusPx(hiddenRadius);
+			state.setTargetRadiusPx(hiddenRadius);
+		}
+	}
+
+	public void resetThreatDistance() {
+		threatDistanceFactor = 1.0F;
+	}
+
+	public void setThreatDistance(double distanceSq, double detectionRadiusBlocks) {
+		threatDistanceFactor = MarkerRadiusMath.resolveDistanceFactor(distanceSq, detectionRadiusBlocks);
+
+		if (!state.isVisible() && state.getAlpha() < HIDDEN_ALPHA_THRESHOLD) {
+			float hiddenRadius = hiddenRadiusFor(visibleRadiusForCurrentThreat());
 			state.setDisplayRadiusPx(hiddenRadius);
 			state.setTargetRadiusPx(hiddenRadius);
 		}
@@ -54,7 +84,7 @@ public final class AttentionMarkerController {
 
 	public void setVisible(boolean visible) {
 		if (visible && !state.isVisible()) {
-			state.setDisplayRadiusPx(Math.max(state.getDisplayRadiusPx(), hiddenRadiusFor(configuredRadiusPx)));
+			state.setDisplayRadiusPx(Math.max(state.getDisplayRadiusPx(), hiddenRadiusFor(visibleRadiusForCurrentThreat())));
 		}
 
 		state.setVisible(visible);
@@ -66,14 +96,15 @@ public final class AttentionMarkerController {
 
 	public void triggerPulse() {
 		setVisible(true);
-		state.setDisplayRadiusPx(Math.max(state.getDisplayRadiusPx(), configuredRadiusPx + PULSE_SLIDE_DISTANCE_PX));
 	}
 
 	public void tick() {
-		float targetAlpha = state.isVisible() ? 1.0F : 0.0F;
-		float targetRadius = state.isVisible() ? configuredRadiusPx : hiddenRadiusFor(configuredRadiusPx);
+		tickCounter++;
+		state.capturePreviousFrame();
+		float targetAlpha = state.isVisible() ? breathingAlpha() : 0.0F;
+		float targetRadius = state.isVisible() ? visibleRadiusForCurrentThreat() : hiddenRadiusFor(configuredMaxRadiusPx);
 
-		state.setDisplayAngleDeg(approachAngle(state.getDisplayAngleDeg(), state.getTargetAngleDeg(), ROTATION_LERP));
+		state.setDisplayAngleDeg(lerpAngle(state.getDisplayAngleDeg(), state.getTargetAngleDeg(), ANGLE_LERP));
 		state.setAlpha(lerp(state.getAlpha(), targetAlpha, ALPHA_LERP));
 		state.setTargetRadiusPx(targetRadius);
 		state.setDisplayRadiusPx(lerp(state.getDisplayRadiusPx(), targetRadius, RADIUS_LERP));
@@ -93,16 +124,24 @@ public final class AttentionMarkerController {
 		return wrapped;
 	}
 
-	private static float approachAngle(float current, float target, float factor) {
-		float delta = normalizeRelativeAngle(target - current);
-		return normalizeRelativeAngle(current + delta * factor);
-	}
-
 	private static float lerp(float current, float target, float factor) {
 		return current + (target - current) * factor;
 	}
 
+	private static float lerpAngle(float current, float target, float factor) {
+		float delta = normalizeRelativeAngle(target - current);
+		return normalizeRelativeAngle(current + (delta * factor));
+	}
+
 	private static float hiddenRadiusFor(float radiusPx) {
-		return radiusPx + REVEAL_SLIDE_DISTANCE_PX;
+		return radiusPx + Math.max(MIN_REVEAL_SLIDE_DISTANCE_PX, radiusPx * REVEAL_SLIDE_FACTOR);
+	}
+
+	private float breathingAlpha() {
+		return BREATH_BASE_ALPHA + ((float) Math.sin(tickCounter * BREATH_SPEED) * BREATH_ALPHA_AMPLITUDE);
+	}
+
+	private float visibleRadiusForCurrentThreat() {
+		return MarkerRadiusMath.visibleRadius(configuredMinRadiusPx, configuredMaxRadiusPx, threatDistanceFactor);
 	}
 }

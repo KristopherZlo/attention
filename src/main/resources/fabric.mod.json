@@ -16,6 +16,9 @@
 		],
 		"client": [
 			"dev.creas.attention.client.AttentionClient"
+		],
+		"modmenu": [
+			"dev.creas.attention.client.compat.AttentionModMenuApi"
 		]
 	},
 	"depends": {
@@ -23,5 +26,8 @@
 		"minecraft": ">=1.21.8 <1.21.12",
 		"java": ">=21",
 		"fabric-api": "*"
+	},
+	"suggests": {
+		"modmenu": "*"
 	}
 }

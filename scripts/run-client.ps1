@@ -1,7 +1,7 @@
 param(
 	[ValidateSet("1.21.8", "1.21.9", "1.21.10", "1.21.11")]
 	[string] $McVersion = "1.21.11",
-	[string] $JavaHome = "C:\Program Files\Eclipse Adoptium\jdk-25.0.2.10-hotspot"
+	[string] $JavaHome = "C:\Program Files\Eclipse Adoptium\jdk-21.0.6.7-hotspot"
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,7 +28,7 @@ $env:JAVA_HOME = $JavaHome
 $env:PATH = "$JavaHome\bin;$env:PATH"
 
 $root = Split-Path -Parent $PSScriptRoot
-$safeRoot = Join-Path $env:TEMP "attention-gradle-root"
+$safeRoot = Join-Path $env:TEMP ("attention-gradle-root-" + $McVersion.Replace(".", "_"))
 $gradleArgs = @(
 	"runClient",
 	"-Pminecraft_version=$McVersion",

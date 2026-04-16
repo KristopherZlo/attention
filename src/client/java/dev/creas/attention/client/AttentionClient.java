@@ -4,41 +4,82 @@ import dev.creas.attention.client.command.AttentionClientCommands;
 import dev.creas.attention.client.config.AttentionConfigManager;
 import dev.creas.attention.client.hud.AttentionMarkerController;
 import dev.creas.attention.client.hud.AttentionMarkerRenderer;
+import dev.creas.attention.client.screen.AttentionSettingsScreen;
 import dev.creas.attention.client.threat.AttentionThreatTracker;
 import dev.creas.attention.client.threat.LiveThreatDetector;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
 import net.minecraft.util.Identifier;
+import org.lwjgl.glfw.GLFW;
 
 public final class AttentionClient implements ClientModInitializer {
 	private static final Identifier MARKER_LAYER = Identifier.of("attention", "crosshair_marker");
+	private static final AttentionConfigManager CONFIG_MANAGER = new AttentionConfigManager();
+	private static final AttentionMarkerController MARKER_CONTROLLER = new AttentionMarkerController();
+	private static final AttentionMarkerRenderer MARKER_RENDERER = new AttentionMarkerRenderer(MARKER_CONTROLLER.getState());
 
-	private final AttentionConfigManager configManager = new AttentionConfigManager();
-	private final AttentionMarkerController markerController = new AttentionMarkerController();
-	private final AttentionMarkerRenderer markerRenderer = new AttentionMarkerRenderer(markerController.getState());
+	private KeyBinding openSettingsKeyBinding;
 	private final AttentionThreatTracker threatTracker = new AttentionThreatTracker(
 			new LiveThreatDetector(),
-			() -> configManager.getConfig().detectionRadiusBlocks()
+			CONFIG_MANAGER::getConfig
 	);
 
 	@Override
 	public void onInitializeClient() {
-		configManager.load();
-		markerController.setConfiguredRadius((float) configManager.getConfig().indicatorRadiusPixels());
-		HudElementRegistry.attachElementAfter(VanillaHudElements.CROSSHAIR, MARKER_LAYER, markerRenderer::render);
+		CONFIG_MANAGER.load();
+		applyConfiguredRadii();
+		HudElementRegistry.attachElementAfter(VanillaHudElements.CROSSHAIR, MARKER_LAYER, MARKER_RENDERER::render);
 		ClientTickEvents.END_CLIENT_TICK.register(this::onEndClientTick);
 		ClientCommandRegistrationCallback.EVENT.register(
-				(dispatcher, registryAccess) -> AttentionClientCommands.register(dispatcher, markerController, configManager)
+				(dispatcher, registryAccess) -> AttentionClientCommands.register(dispatcher, MARKER_CONTROLLER, CONFIG_MANAGER)
+		);
+		openSettingsKeyBinding = KeyBindingHelper.registerKeyBinding(
+				new KeyBinding(
+						"key.attention.open_settings",
+						InputUtil.Type.KEYSYM,
+						GLFW.GLFW_KEY_UNKNOWN,
+						KeyBinding.Category.create(Identifier.of("attention", "settings"))
+				)
 		);
 	}
 
 	private void onEndClientTick(MinecraftClient client) {
-		markerController.setConfiguredRadius((float) configManager.getConfig().indicatorRadiusPixels());
-		threatTracker.tick(client, markerController);
-		markerController.tick();
+		applyConfiguredRadii();
+		openSettingsIfRequested(client);
+		threatTracker.tick(client, MARKER_CONTROLLER);
+		MARKER_CONTROLLER.tick();
+	}
+
+	public static AttentionConfigManager getConfigManager() {
+		return CONFIG_MANAGER;
+	}
+
+	public static Screen createSettingsScreen(Screen parent) {
+		return new AttentionSettingsScreen(parent, CONFIG_MANAGER);
+	}
+
+	private static void applyConfiguredRadii() {
+		var config = CONFIG_MANAGER.getConfig();
+		MARKER_CONTROLLER.setConfiguredRadii((float) config.minIndicatorRadiusPixels(), (float) config.maxIndicatorRadiusPixels());
+	}
+
+	private void openSettingsIfRequested(MinecraftClient client) {
+		if (client == null || openSettingsKeyBinding == null) {
+			return;
+		}
+
+		while (openSettingsKeyBinding.wasPressed()) {
+			if (!(client.currentScreen instanceof AttentionSettingsScreen)) {
+				client.setScreen(createSettingsScreen(client.currentScreen));
+			}
+		}
 	}
 }
