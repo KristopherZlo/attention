@@ -163,6 +163,261 @@ public final class AttentionSettingsScreen extends Screen {
 		}
 	}
 
+	private void initRadiiPage(Layout layout) {
+		int x = layout.left();
+		int y = layout.contentY() + 24;
+		detectionRadiusSlider = addDrawableChild(new ValueSlider(
+				x,
+				y,
+				layout.panelWidth(),
+				"Detection radius",
+				AttentionConfig.minDetectionRadiusBlocks(),
+				AttentionConfig.maxDetectionRadiusBlocks(),
+				1.0D,
+				() -> detectionRadiusBlocks,
+				value -> detectionRadiusBlocks = value,
+				value -> Math.round(value) + " blocks"
+		));
+		minRadiusSlider = addDrawableChild(new ValueSlider(
+				x,
+				y + ROW_HEIGHT,
+				layout.panelWidth(),
+				"Minimum marker radius",
+				AttentionConfig.minimumIndicatorRadiusPixels(),
+				AttentionConfig.maximumIndicatorRadiusPixels(),
+				1.0D,
+				() -> minIndicatorRadiusPixels,
+				value -> {
+					minIndicatorRadiusPixels = value;
+					if (minIndicatorRadiusPixels > maxIndicatorRadiusPixels) {
+						maxIndicatorRadiusPixels = minIndicatorRadiusPixels;
+						if (maxRadiusSlider != null) {
+							maxRadiusSlider.syncFromState();
+						}
+					}
+				},
+				value -> Math.round(value) + " px"
+		));
+		maxRadiusSlider = addDrawableChild(new ValueSlider(
+				x,
+				y + (ROW_HEIGHT * 2),
+				layout.panelWidth(),
+				"Maximum marker radius",
+				AttentionConfig.minimumIndicatorRadiusPixels(),
+				AttentionConfig.maximumIndicatorRadiusPixels(),
+				1.0D,
+				() -> maxIndicatorRadiusPixels,
+				value -> {
+					maxIndicatorRadiusPixels = value;
+					if (maxIndicatorRadiusPixels < minIndicatorRadiusPixels) {
+						minIndicatorRadiusPixels = maxIndicatorRadiusPixels;
+						if (minRadiusSlider != null) {
+							minRadiusSlider.syncFromState();
+						}
+					}
+				},
+				value -> Math.round(value) + " px"
+		));
+	}
+
+	private void initFiltersPage(Layout layout) {
+		int x = layout.left();
+		int y = layout.contentY() + 24;
+		reactOnlyInSurvivalButton = addDrawableChild(ButtonWidget.builder(toggleText("Survival only", reactOnlyInSurvival), button -> {
+			reactOnlyInSurvival = !reactOnlyInSurvival;
+			refreshToggleLabels();
+		}).dimensions(x, y, layout.panelWidth(), CONTROL_HEIGHT).build());
+		reactToTargetingHostilesButton = addDrawableChild(ButtonWidget.builder(toggleText("Hostiles targeting you", reactToTargetingHostiles), button -> {
+			reactToTargetingHostiles = !reactToTargetingHostiles;
+			refreshToggleLabels();
+		}).dimensions(x, y + ROW_HEIGHT, layout.panelWidth(), CONTROL_HEIGHT).build());
+		reactToApproachingHostilesButton = addDrawableChild(ButtonWidget.builder(toggleText("Hostiles approaching", reactToApproachingHostiles), button -> {
+			reactToApproachingHostiles = !reactToApproachingHostiles;
+			refreshToggleLabels();
+		}).dimensions(x, y + (ROW_HEIGHT * 2), layout.panelWidth(), CONTROL_HEIGHT).build());
+		reactToPlayersButton = addDrawableChild(ButtonWidget.builder(toggleText("React to players", reactToPlayers), button -> {
+			reactToPlayers = !reactToPlayers;
+			refreshToggleLabels();
+		}).dimensions(x, y + (ROW_HEIGHT * 3), layout.panelWidth(), CONTROL_HEIGHT).build());
+	}
+
+	private void initPlayersPage(Layout layout) {
+		int x = layout.left();
+		int y = layout.contentY() + 24;
+		playerSearchField = addDrawableChild(new TextFieldWidget(textRenderer, x, y, layout.panelWidth(), CONTROL_HEIGHT, Text.literal("Player search")));
+		playerSearchField.setMaxLength(64);
+		playerSearchField.setText(playerSearchText);
+		playerSearchField.setPlaceholder(Text.literal("Filter online players"));
+		playerSearchField.setChangedListener(text -> {
+			playerSearchText = text;
+			playerListScroll = 0.0D;
+		});
+
+		playerFilterModeButton = addDrawableChild(ButtonWidget.builder(playerFilterModeText(), button -> {
+			playerFilterMode = playerFilterMode.next();
+			refreshToggleLabels();
+			refreshPlayerFilterState();
+		}).dimensions(x, y + ROW_HEIGHT, layout.panelWidth(), CONTROL_HEIGHT).build());
+		refreshPlayerFilterState();
+	}
+
+	private void addPageTab(int x, int y, int width, SettingsPage targetPage) {
+		ButtonWidget tab = addDrawableChild(ButtonWidget.builder(Text.literal(targetPage.label), button -> {
+			if (page != targetPage) {
+				page = targetPage;
+				clearAndInit();
+			}
+		}).dimensions(x, y, width, CONTROL_HEIGHT).build());
+		tab.active = page != targetPage;
+	}
+
+	private void drawLabels(DrawContext context, Layout layout) {
+		context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 10, 0xFFFFFFFF);
+
+		if (page == SettingsPage.RADII) {
+			context.drawTextWithShadow(textRenderer, Text.literal("Radius response"), layout.left(), layout.contentY(), 0xFFFFFFFF);
+			context.drawTextWithShadow(textRenderer, Text.literal("Close threats use the minimum radius."), layout.left(), layout.contentY() + 102, 0xFFA0A0A0);
+			context.drawTextWithShadow(textRenderer, Text.literal("Far threats use the maximum radius."), layout.left(), layout.contentY() + 114, 0xFFA0A0A0);
+		} else if (page == SettingsPage.FILTERS) {
+			context.drawTextWithShadow(textRenderer, Text.literal("Threat filters"), layout.left(), layout.contentY(), 0xFFFFFFFF);
+			context.drawTextWithShadow(textRenderer, Text.literal("Default mode reacts only in survival."), layout.left(), layout.contentY() + 126, 0xFFA0A0A0);
+		} else {
+			context.drawTextWithShadow(textRenderer, Text.literal("Online players"), layout.left(), layout.contentY(), 0xFFFFFFFF);
+			context.drawTextWithShadow(textRenderer, Text.literal("Listed: " + selectedPlayerNames().size()), layout.left() + layout.panelWidth() - 58, layout.contentY(), 0xFFA0A0A0);
+		}
+	}
+
+	private void drawPreview(DrawContext context, int x, int y, int panelWidth, int panelHeight) {
+		int panelColor = 0x66111111;
+		int borderColor = 0x99FFFFFF;
+		context.fill(x, y, x + panelWidth, y + panelHeight, panelColor);
+		context.fill(x, y, x + panelWidth, y + 1, borderColor);
+		context.fill(x, y + panelHeight - 1, x + panelWidth, y + panelHeight, borderColor);
+		context.fill(x, y, x + 1, y + panelHeight, borderColor);
+		context.fill(x + panelWidth - 1, y, x + panelWidth, y + panelHeight, borderColor);
+
+		int centerX = x + (panelWidth / 2);
+		int centerY = y + (panelHeight / 2);
+		float timeSeconds = (System.currentTimeMillis() % 6000L) / 1000.0F;
+		float previewAngle = AttentionMarkerController.normalizeRelativeAngle((timeSeconds * 58.0F) - 180.0F);
+		float distanceFactor = clamp01((float) ((Math.sin(timeSeconds * 1.15F) + 1.0D) * 0.5D));
+		float previewRadius = MarkerRadiusMath.visibleRadius((float) minIndicatorRadiusPixels, (float) maxIndicatorRadiusPixels, distanceFactor);
+		float previewAlpha = 0.55F + (clamp01((float) ((Math.sin(timeSeconds * 2.1F) + 1.0D) * 0.5D)) * 0.45F);
+
+		context.drawTextWithShadow(textRenderer, Text.literal("Preview"), x + 8, y + 8, 0xFFFFFFFF);
+		drawCrosshair(context, centerX, centerY);
+		AttentionMarkerRenderer.drawMarker(context, centerX, centerY, previewRadius, previewAngle, previewAlpha);
+		context.drawTextWithShadow(textRenderer, Text.literal("Detection: " + Math.round(detectionRadiusBlocks) + " blocks"), x + 8, y + panelHeight - 26, 0xFFE6E6E6);
+		context.drawTextWithShadow(textRenderer, Text.literal("Radius: " + Math.round(minIndicatorRadiusPixels) + "-" + Math.round(maxIndicatorRadiusPixels) + " px"), x + 8, y + panelHeight - 14, 0xFFE6E6E6);
+	}
+
+	private void drawCrosshair(DrawContext context, int centerX, int centerY) {
+		int color = 0xFFFFFFFF;
+		context.fill(centerX - 5, centerY, centerX + 6, centerY + 1, color);
+		context.fill(centerX, centerY - 5, centerX + 1, centerY + 6, color);
+	}
+
+	private void saveAndClose() {
+		close();
+	}
+
+	private void saveDraft() {
+		configManager.setConfig(new AttentionConfig(
+				detectionRadiusBlocks,
+				minIndicatorRadiusPixels,
+				maxIndicatorRadiusPixels,
+				reactOnlyInSurvival,
+				reactToPlayers,
+				reactToTargetingHostiles,
+				reactToApproachingHostiles,
+				playerFilterMode,
+				AttentionConfig.parsePlayerFilterText(playerFilterText)
+		));
+	}
+
+	private void loadDraft(AttentionConfig config) {
+		detectionRadiusBlocks = config.detectionRadiusBlocks();
+		minIndicatorRadiusPixels = config.minIndicatorRadiusPixels();
+		maxIndicatorRadiusPixels = config.maxIndicatorRadiusPixels();
+		reactOnlyInSurvival = config.reactOnlyInSurvival();
+		reactToPlayers = config.reactToPlayers();
+		reactToTargetingHostiles = config.reactToTargetingHostiles();
+		reactToApproachingHostiles = config.reactToApproachingHostiles();
+		playerFilterMode = config.playerFilterMode();
+		playerFilterText = AttentionConfig.formatPlayerFilterText(config.playerFilterNames());
+	}
+
+	private void syncWidgetsFromDraft() {
+		if (detectionRadiusSlider != null) {
+			detectionRadiusSlider.syncFromState();
+		}
+		if (minRadiusSlider != null) {
+			minRadiusSlider.syncFromState();
+		}
+		if (maxRadiusSlider != null) {
+			maxRadiusSlider.syncFromState();
+		}
+		if (playerSearchField != null) {
+			playerSearchField.setText(playerSearchText);
+		}
+		refreshToggleLabels();
+		refreshPlayerFilterState();
+	}
+
+	private void refreshToggleLabels() {
+		if (reactOnlyInSurvivalButton != null) {
+			reactOnlyInSurvivalButton.setMessage(toggleText("Survival only", reactOnlyInSurvival));
+		}
+		if (reactToPlayersButton != null) {
+			reactToPlayersButton.setMessage(toggleText("React to players", reactToPlayers));
+		}
+		if (reactToTargetingHostilesButton != null) {
+			reactToTargetingHostilesButton.setMessage(toggleText("Hostiles targeting you", reactToTargetingHostiles));
+		}
+		if (reactToApproachingHostilesButton != null) {
+			reactToApproachingHostilesButton.setMessage(toggleText("Hostiles approaching", reactToApproachingHostiles));
+		}
+		if (playerFilterModeButton != null) {
+			playerFilterModeButton.setMessage(playerFilterModeText());
+		}
+	}
+
+	private void refreshPlayerFilterState() {
+		if (playerSearchField == null) {
+			return;
+		}
+
+		playerSearchField.active = true;
+		playerSearchField.setEditable(true);
+	}
+
+	private boolean completePlayerSearchName() {
+		if (client == null
+				|| client.getNetworkHandler() == null
+				|| playerSearchField == null
+				|| !playerSearchField.active
+				|| !playerSearchField.isFocused()) {
+			return false;
+		}
+
+		String prefix = playerSearchText.trim();
+
+		if (prefix.isEmpty()) {
+			return true;
+		}
+
+		List<String> matches = onlinePlayerNamesStartingWith(prefix);
+
+		if (matches.isEmpty()) {
+			return true;
+		}
+
+		String completion = matches.size() == 1 ? matches.getFirst() : longestCommonPrefix(matches);
+		if (completion.length() <= prefix.length()) {
+			completion = matches.getFirst();
+		}
+
+		playerSearchText = completion;
 	private void saveAndClose() {
 		configManager.setConfig(configManager.getConfig().withIndicatorRadiusPixels(indicatorRadiusPixels));
 		close();
@@ -202,3 +457,4 @@ public final class AttentionSettingsScreen extends Screen {
 		}
 	}
 }
+
