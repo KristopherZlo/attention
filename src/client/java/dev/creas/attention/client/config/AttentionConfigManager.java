@@ -2,7 +2,9 @@ package dev.creas.attention.client.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
 import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,8 +37,8 @@ public final class AttentionConfigManager {
 			}
 
 			try (Reader reader = Files.newBufferedReader(configPath)) {
-				AttentionConfig loadedConfig = GSON.fromJson(reader, AttentionConfig.class);
-				config = loadedConfig == null ? AttentionConfig.defaults() : loadedConfig.sanitize();
+				JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
+				config = AttentionConfig.fromJson(root);
 			}
 		} catch (IOException | JsonParseException exception) {
 			LOGGER.warn("Failed to load attention config from {}", configPath, exception);
@@ -51,7 +53,7 @@ public final class AttentionConfigManager {
 			Files.createDirectories(configPath.getParent());
 
 			try (Writer writer = Files.newBufferedWriter(configPath)) {
-				GSON.toJson(config, writer);
+				GSON.toJson(config.toJson(), writer);
 			}
 		} catch (IOException exception) {
 			LOGGER.warn("Failed to save attention config to {}", configPath, exception);
