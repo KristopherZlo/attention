@@ -5,10 +5,11 @@
 	"name": "Attention!",
 	"description": "A client-side warning marker that reduces sudden surprises around the crosshair.",
 	"authors": [
-		"creas"
+		"Zlo"
 	],
 	"contact": {},
-	"license": "MIT",
+	"license": "GPL-3.0-only",
+	"icon": "assets/attention/icon.png",
 	"environment": "client",
 	"entrypoints": {
 		"main": [

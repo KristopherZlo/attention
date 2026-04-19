@@ -6,4 +6,11 @@ run/
 out/
 .idea/
 .vscode/
-
+*.iml
+*.ipr
+*.iws
+hs_err_pid*
+replay_pid*
+crash-*.txt
+Thumbs.db
+.DS_Store
