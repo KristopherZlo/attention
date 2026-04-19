@@ -1,13 +1,12 @@
 package dev.creas.attention.client.screen;
 
+import dev.creas.attention.client.compat.GameProfileCompat;
 import dev.creas.attention.client.config.AttentionConfig;
 import dev.creas.attention.client.config.AttentionConfigManager;
 import dev.creas.attention.client.config.PlayerFilterMode;
 import dev.creas.attention.client.hud.AttentionMarkerController;
 import dev.creas.attention.client.hud.AttentionMarkerRenderer;
 import dev.creas.attention.marker.MarkerRadiusMath;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.input.KeyInput;
 import net.minecraft.client.gui.PlayerSkinDrawer;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.gui.DrawContext;
@@ -17,7 +16,6 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -28,7 +26,7 @@ import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 
-public final class AttentionSettingsScreen extends Screen {
+abstract class AttentionSettingsScreenBase extends Screen {
 	private static final int PANEL_WIDTH = 212;
 	private static final int MIN_PANEL_WIDTH = 170;
 	private static final int MAX_PREVIEW_HEIGHT = 142;
@@ -65,7 +63,7 @@ public final class AttentionSettingsScreen extends Screen {
 	private ButtonWidget playerFilterModeButton;
 	private TextFieldWidget playerSearchField;
 
-	public AttentionSettingsScreen(Screen parent, AttentionConfigManager configManager) {
+	AttentionSettingsScreenBase(Screen parent, AttentionConfigManager configManager) {
 		super(Text.literal("Attention Settings"));
 		this.parent = parent;
 		this.configManager = configManager;
@@ -124,25 +122,7 @@ public final class AttentionSettingsScreen extends Screen {
 
 	@Override
 	public boolean shouldPause() {
-		return false;
-	}
-
-	@Override
-	public boolean keyPressed(KeyInput keyInput) {
-		if (keyInput.key() == GLFW.GLFW_KEY_TAB && completePlayerSearchName()) {
-			return true;
-		}
-
-		return super.keyPressed(keyInput);
-	}
-
-	@Override
-	public boolean mouseClicked(Click click, boolean doubleClick) {
-		if (super.mouseClicked(click, doubleClick)) {
-			return true;
-		}
-
-		return click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && handlePlayerListClick(click.x(), click.y());
+		return true;
 	}
 
 	@Override
@@ -344,7 +324,7 @@ public final class AttentionSettingsScreen extends Screen {
 		) {
 			@Override
 			public boolean shouldPause() {
-				return false;
+				return true;
 			}
 		});
 	}
@@ -419,7 +399,7 @@ public final class AttentionSettingsScreen extends Screen {
 		playerSearchField.setEditable(true);
 	}
 
-	private boolean completePlayerSearchName() {
+	protected final boolean completePlayerSearchName() {
 		if (client == null
 				|| client.getNetworkHandler() == null
 				|| playerSearchField == null
@@ -563,7 +543,7 @@ public final class AttentionSettingsScreen extends Screen {
 		context.drawText(textRenderer, suffix, x, y, 0x66FFFFFF, false);
 	}
 
-	private boolean handlePlayerListClick(double mouseX, double mouseY) {
+	protected final boolean handlePlayerListClick(double mouseX, double mouseY) {
 		if (page != SettingsPage.PLAYERS) {
 			return false;
 		}
@@ -614,10 +594,10 @@ public final class AttentionSettingsScreen extends Screen {
 	private List<String> onlinePlayerNamesStartingWith(String prefix) {
 		String normalizedPrefix = normalizePlayerName(prefix);
 		return onlinePlayers().stream()
-				.map(AttentionSettingsScreen::playerName)
+				.map(AttentionSettingsScreenBase::playerName)
 				.filter(name -> normalizePlayerName(name).startsWith(normalizedPrefix))
 				.distinct()
-				.sorted(Comparator.comparing(AttentionSettingsScreen::normalizePlayerName))
+				.sorted(Comparator.comparing(AttentionSettingsScreenBase::normalizePlayerName))
 				.toList();
 	}
 
@@ -630,7 +610,7 @@ public final class AttentionSettingsScreen extends Screen {
 	}
 
 	private List<String> selectedPlayerNames() {
-		String localPlayerName = normalizePlayerName(client == null || client.player == null ? "" : client.player.getGameProfile().name());
+		String localPlayerName = normalizePlayerName(client == null || client.player == null ? "" : GameProfileCompat.name(client.player.getGameProfile()));
 		return AttentionConfig.parsePlayerFilterText(playerFilterText).stream()
 				.filter(name -> !name.equals(localPlayerName))
 				.toList();
@@ -652,14 +632,14 @@ public final class AttentionSettingsScreen extends Screen {
 	private boolean isLocalPlayer(PlayerListEntry entry) {
 		return client != null
 				&& client.player != null
-				&& (Objects.equals(entry.getProfile().id(), client.player.getGameProfile().id())
-				|| normalizePlayerName(playerName(entry)).equals(normalizePlayerName(client.player.getGameProfile().name())));
+				&& (Objects.equals(GameProfileCompat.id(entry.getProfile()), GameProfileCompat.id(client.player.getGameProfile()))
+				|| normalizePlayerName(playerName(entry)).equals(normalizePlayerName(GameProfileCompat.name(client.player.getGameProfile()))));
 	}
 
 	private boolean isLocalPlayerName(String normalizedName) {
 		return client != null
 				&& client.player != null
-				&& normalizedName.equals(normalizePlayerName(client.player.getGameProfile().name()));
+				&& normalizedName.equals(normalizePlayerName(GameProfileCompat.name(client.player.getGameProfile())));
 	}
 
 	private int maxPlayerListScroll(Layout layout) {
@@ -686,7 +666,7 @@ public final class AttentionSettingsScreen extends Screen {
 	}
 
 	private static String playerName(PlayerListEntry entry) {
-		return entry.getProfile().name() == null ? "" : entry.getProfile().name();
+		return GameProfileCompat.name(entry.getProfile());
 	}
 
 	private static String normalizePlayerName(String playerName) {

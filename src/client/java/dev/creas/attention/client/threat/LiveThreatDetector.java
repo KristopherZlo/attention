@@ -1,5 +1,6 @@
 package dev.creas.attention.client.threat;
 
+import dev.creas.attention.client.compat.GameProfileCompat;
 import dev.creas.attention.client.config.AttentionConfig;
 import dev.creas.attention.threat.ThreatKind;
 import dev.creas.attention.threat.ThreatMath;
@@ -41,7 +42,7 @@ public final class LiveThreatDetector {
 		if (config.reactToPlayers()) {
 			playerThreats = client.world.getPlayers().stream()
 					.filter(otherPlayer -> otherPlayer.isAlive() && !otherPlayer.isSpectator() && otherPlayer != localPlayer)
-					.filter(otherPlayer -> config.allowsPlayerName(otherPlayer.getGameProfile().name()))
+					.filter(otherPlayer -> config.allowsPlayerName(GameProfileCompat.name(otherPlayer.getGameProfile())))
 					.flatMap(otherPlayer -> createPlayerThreat(client, localPlayer, otherPlayer, detectionRadiusBlocks).stream());
 		}
 
@@ -66,7 +67,7 @@ public final class LiveThreatDetector {
 			case OFFSCREEN_PLAYER -> entity instanceof PlayerEntity otherPlayer
 					&& otherPlayer.isAlive()
 					&& !otherPlayer.isSpectator()
-					&& config.allowsPlayerName(otherPlayer.getGameProfile().name());
+					&& config.allowsPlayerName(GameProfileCompat.name(otherPlayer.getGameProfile()));
 		};
 	}
 
@@ -88,7 +89,7 @@ public final class LiveThreatDetector {
 			case OFFSCREEN_PLAYER -> entity instanceof PlayerEntity otherPlayer
 					&& otherPlayer.isAlive()
 					&& !otherPlayer.isSpectator()
-					&& config.allowsPlayerName(otherPlayer.getGameProfile().name());
+					&& config.allowsPlayerName(GameProfileCompat.name(otherPlayer.getGameProfile()));
 		};
 	}
 

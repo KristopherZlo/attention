@@ -42,12 +42,7 @@ public final class AttentionClient implements ClientModInitializer {
 				(dispatcher, registryAccess) -> AttentionClientCommands.register(dispatcher, MARKER_CONTROLLER, CONFIG_MANAGER)
 		);
 		openSettingsKeyBinding = KeyBindingHelper.registerKeyBinding(
-				new KeyBinding(
-						"key.attention.open_settings",
-						InputUtil.Type.KEYSYM,
-						GLFW.GLFW_KEY_UNKNOWN,
-						KeyBinding.Category.create(Identifier.of("attention", "settings"))
-				)
+				createOpenSettingsKeyBinding()
 		);
 	}
 
@@ -80,6 +75,30 @@ public final class AttentionClient implements ClientModInitializer {
 			if (!(client.currentScreen instanceof AttentionSettingsScreen)) {
 				client.setScreen(createSettingsScreen(client.currentScreen));
 			}
+		}
+	}
+
+	private static KeyBinding createOpenSettingsKeyBinding() {
+		try {
+			Class<?> categoryClass = Class.forName("net.minecraft.client.option.KeyBinding$Category");
+			Object category = categoryClass.getMethod("create", Identifier.class).invoke(null, Identifier.of("attention", "settings"));
+			return KeyBinding.class
+					.getConstructor(String.class, InputUtil.Type.class, int.class, categoryClass)
+					.newInstance("key.attention.open_settings", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, category);
+		} catch (ClassNotFoundException exception) {
+			return createLegacyOpenSettingsKeyBinding();
+		} catch (ReflectiveOperationException exception) {
+			throw new IllegalStateException("Failed to create settings key binding", exception);
+		}
+	}
+
+	private static KeyBinding createLegacyOpenSettingsKeyBinding() {
+		try {
+			return KeyBinding.class
+					.getConstructor(String.class, InputUtil.Type.class, int.class, String.class)
+					.newInstance("key.attention.open_settings", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.attention");
+		} catch (ReflectiveOperationException exception) {
+			throw new IllegalStateException("Failed to create legacy settings key binding", exception);
 		}
 	}
 }

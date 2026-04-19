@@ -32,6 +32,7 @@ if (!supportedMinecraftVersions.contains(selectedMinecraftVersion)) {
 
 def selectedFabricApiVersion = project.findProperty("fabric_api_version") ?: fabricApiVersions[selectedMinecraftVersion]
 def selectedYarnMappings = project.findProperty("yarn_mappings") ?: yarnMappings[selectedMinecraftVersion]
+def selectedClientCompatSource = selectedMinecraftVersion == "1.21.8" ? "src/clientLegacy/java" : "src/clientModern/java"
 
 loom {
 	splitEnvironmentSourceSets()
@@ -50,6 +51,10 @@ loom {
 			runDir = "run/shared-client"
 		}
 	}
+}
+
+sourceSets.named("client") {
+	java.srcDir selectedClientCompatSource
 }
 
 repositories {
