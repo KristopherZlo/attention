@@ -418,6 +418,196 @@ public final class AttentionSettingsScreen extends Screen {
 		}
 
 		playerSearchText = completion;
+		playerSearchField.setText(completion);
+		playerSearchField.setCursorToEnd(false);
+		playerListScroll = 0.0D;
+		return true;
+	}
+
+	private static String longestCommonPrefix(List<String> values) {
+		String prefix = values.getFirst();
+		for (int valueIndex = 1; valueIndex < values.size(); valueIndex++) {
+			String value = values.get(valueIndex);
+			int maxLength = Math.min(prefix.length(), value.length());
+			int prefixLength = 0;
+
+			while (prefixLength < maxLength
+					&& Character.toLowerCase(prefix.charAt(prefixLength)) == Character.toLowerCase(value.charAt(prefixLength))) {
+				prefixLength++;
+			}
+
+			prefix = prefix.substring(0, prefixLength);
+			if (prefix.isEmpty()) {
+				return prefix;
+			}
+		}
+
+		return prefix;
+	}
+
+	private void drawPlayerList(DrawContext context, Layout layout, int mouseX, int mouseY) {
+		PlayerListBox box = playerListBox(layout);
+		List<PlayerListEntry> players = filteredOnlinePlayers();
+		List<String> listedNames = selectedPlayerNames();
+		int maxScroll = maxPlayerListScroll(layout);
+		playerListScroll = clamp(playerListScroll, 0.0D, maxScroll);
+		int scroll = (int) Math.floor(playerListScroll);
+
+		context.fill(box.x(), box.y(), box.x() + box.width(), box.y() + box.height(), 0x55111111);
+		context.fill(box.x(), box.y(), box.x() + box.width(), box.y() + 1, 0x66FFFFFF);
+		context.fill(box.x(), box.y() + box.height() - 1, box.x() + box.width(), box.y() + box.height(), 0x44FFFFFF);
+
+		if (players.isEmpty()) {
+			String message = playerSearchText.isBlank() ? "No online players" : "No matching players";
+			context.drawCenteredTextWithShadow(textRenderer, Text.literal(message), box.x() + (box.width() / 2), box.y() + 18, 0xFFA0A0A0);
+			return;
+		}
+
+		context.enableScissor(box.x(), box.y(), box.x() + box.width(), box.y() + box.height());
+		int firstIndex = Math.max(0, scroll / PLAYER_ROW_HEIGHT);
+		int rowY = box.y() + (firstIndex * PLAYER_ROW_HEIGHT) - scroll;
+
+		for (int index = firstIndex; index < players.size() && rowY < box.y() + box.height(); index++) {
+			if (rowY + PLAYER_ROW_HEIGHT >= box.y()) {
+				drawPlayerRow(context, box, players.get(index), listedNames, rowY, mouseX, mouseY);
+			}
+			rowY += PLAYER_ROW_HEIGHT;
+		}
+
+		context.disableScissor();
+		drawPlayerListScrollbar(context, box, players.size(), maxScroll);
+	}
+
+	private void drawPlayerRow(DrawContext context, PlayerListBox box, PlayerListEntry entry, List<String> listedNames, int rowY, int mouseX, int mouseY) {
+		String playerName = playerName(entry);
+		boolean listed = listedNames.contains(normalizePlayerName(playerName));
+		int buttonX = playerListButtonX(box);
+		int buttonY = rowY + 5;
+		boolean hovered = isInside(mouseX, mouseY, buttonX, buttonY, PLAYER_LIST_BUTTON_WIDTH, 18);
+		int rowColor = hovered ? 0x331F1F1F : 0x22111111;
+
+		context.fill(box.x() + 1, rowY, box.x() + box.width() - 1, rowY + PLAYER_ROW_HEIGHT - 1, rowColor);
+		PlayerSkinDrawer.draw(context, entry.getSkinTextures(), box.x() + 5, rowY + 5, PLAYER_FACE_SIZE);
+		context.drawTextWithShadow(textRenderer, trimToWidth(playerName, buttonX - box.x() - 34), box.x() + 29, rowY + 10, 0xFFFFFFFF);
+		drawListButton(context, buttonX, buttonY, PLAYER_LIST_BUTTON_WIDTH, 18, listed ? "Remove" : "Add", listed, hovered);
+	}
+
+	private void drawListButton(DrawContext context, int x, int y, int width, int height, String label, boolean listed, boolean hovered) {
+		int fill = listed ? 0xAA2A2A2A : 0xAA1F3323;
+		int border = hovered ? 0xFFFFFFFF : 0x88FFFFFF;
+		int textColor = listed ? 0xFFE6E6E6 : 0xFFFFFFFF;
+
+		context.fill(x, y, x + width, y + height, fill);
+		context.fill(x, y, x + width, y + 1, border);
+		context.fill(x, y + height - 1, x + width, y + height, border);
+		context.fill(x, y, x + 1, y + height, border);
+		context.fill(x + width - 1, y, x + width, y + height, border);
+		context.drawCenteredTextWithShadow(textRenderer, Text.literal(label), x + (width / 2), y + 5, textColor);
+	}
+
+	private void drawPlayerListScrollbar(DrawContext context, PlayerListBox box, int playerCount, int maxScroll) {
+		if (maxScroll <= 0) {
+			return;
+		}
+
+		int contentHeight = playerCount * PLAYER_ROW_HEIGHT;
+		int trackX = box.x() + box.width() - 3;
+		int thumbHeight = Math.max(12, (box.height() * box.height()) / contentHeight);
+		int thumbY = box.y() + (int) ((box.height() - thumbHeight) * (playerListScroll / maxScroll));
+
+		context.fill(trackX, box.y() + 2, trackX + 1, box.y() + box.height() - 2, 0x44FFFFFF);
+		context.fill(trackX - 1, thumbY, trackX + 2, thumbY + thumbHeight, 0xAAFFFFFF);
+	}
+
+	private void drawPlayerSearchSuggestion(DrawContext context) {
+		if (playerSearchField == null || !playerSearchField.isFocused()) {
+			return;
+		}
+
+		String suggestion = firstOnlinePlayerStartingWith(playerSearchText);
+		if (suggestion.isEmpty() || suggestion.length() <= playerSearchText.length()) {
+			return;
+		}
+
+		String suffix = suggestion.substring(playerSearchText.length());
+		int x = playerSearchField.getX() + 4 + textRenderer.getWidth(playerSearchText);
+		int y = playerSearchField.getY() + ((playerSearchField.getHeight() - 8) / 2);
+		context.drawText(textRenderer, suffix, x, y, 0x66FFFFFF, false);
+	}
+
+	private boolean handlePlayerListClick(double mouseX, double mouseY) {
+		if (page != SettingsPage.PLAYERS) {
+			return false;
+		}
+
+		Layout layout = layout();
+		PlayerListBox box = playerListBox(layout);
+		if (!isInside(mouseX, mouseY, box)) {
+			return false;
+		}
+
+		List<PlayerListEntry> players = filteredOnlinePlayers();
+		playerListScroll = clamp(playerListScroll, 0.0D, maxPlayerListScroll(layout));
+		int index = (int) ((mouseY - box.y() + playerListScroll) / PLAYER_ROW_HEIGHT);
+		if (index < 0 || index >= players.size()) {
+			return false;
+		}
+
+		int rowY = box.y() + (index * PLAYER_ROW_HEIGHT) - (int) Math.floor(playerListScroll);
+		int buttonX = playerListButtonX(box);
+		int buttonY = rowY + 5;
+		if (!isInside(mouseX, mouseY, buttonX, buttonY, PLAYER_LIST_BUTTON_WIDTH, 18)) {
+			return false;
+		}
+
+		toggleListedPlayer(playerName(players.get(index)));
+		return true;
+	}
+
+	private List<PlayerListEntry> filteredOnlinePlayers() {
+		String query = normalizePlayerName(playerSearchText);
+		return onlinePlayers().stream()
+				.filter(entry -> query.isEmpty() || normalizePlayerName(playerName(entry)).contains(query))
+				.toList();
+	}
+
+	private List<PlayerListEntry> onlinePlayers() {
+		if (client == null || client.getNetworkHandler() == null) {
+			return List.of();
+		}
+
+		return client.getNetworkHandler().getPlayerList().stream()
+				.filter(entry -> !playerName(entry).isBlank())
+				.sorted(Comparator.comparing(entry -> normalizePlayerName(playerName(entry))))
+				.toList();
+	}
+
+	private List<String> onlinePlayerNamesStartingWith(String prefix) {
+		String normalizedPrefix = normalizePlayerName(prefix);
+		return onlinePlayers().stream()
+				.map(AttentionSettingsScreen::playerName)
+				.filter(name -> normalizePlayerName(name).startsWith(normalizedPrefix))
+				.distinct()
+				.sorted(Comparator.comparing(AttentionSettingsScreen::normalizePlayerName))
+				.toList();
+	}
+
+	private String firstOnlinePlayerStartingWith(String prefix) {
+		if (prefix.isBlank()) {
+			return "";
+		}
+
+		return onlinePlayerNamesStartingWith(prefix).stream().findFirst().orElse("");
+	}
+
+	private List<String> selectedPlayerNames() {
+		return AttentionConfig.parsePlayerFilterText(playerFilterText);
+	}
+
+	private void toggleListedPlayer(String playerName) {
+		String normalizedName = normalizePlayerName(playerName);
+		if (normalizedName.isEmpty()) {
+			return;
 	private void saveAndClose() {
 		configManager.setConfig(configManager.getConfig().withIndicatorRadiusPixels(indicatorRadiusPixels));
 		close();
@@ -457,4 +647,5 @@ public final class AttentionSettingsScreen extends Screen {
 		}
 	}
 }
+
 
