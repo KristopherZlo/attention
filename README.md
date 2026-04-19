@@ -19,6 +19,12 @@ The goal is simple: make it easier to keep control of the situation without chan
 
 For a shorter storefront-style description, see [MODRINTH.md](MODRINTH.md).
 
+## 🎥 Preview
+
+![Attention marker preview](mod-preview.gif)
+
+![Attention settings preview](menu-preview.gif)
+
 ## 🧠 What Is This?
 
 **A small awareness mod that tries to stay out of the way.**
