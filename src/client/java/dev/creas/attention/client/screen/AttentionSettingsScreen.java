@@ -11,6 +11,7 @@ import net.minecraft.client.input.KeyInput;
 import net.minecraft.client.gui.PlayerSkinDrawer;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.ConfirmScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.SliderWidget;
@@ -22,6 +23,7 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
@@ -97,10 +99,9 @@ public final class AttentionSettingsScreen extends Screen {
 		}
 
 		int actionWidth = (layout.panelWidth() - 4) / 2;
-		addDrawableChild(ButtonWidget.builder(Text.literal("Defaults"), button -> {
-			loadDraft(AttentionConfig.defaults());
-			syncWidgetsFromDraft();
-		}).dimensions(layout.right(), layout.buttonY(), actionWidth, CONTROL_HEIGHT).build());
+		addDrawableChild(ButtonWidget.builder(Text.literal("Defaults"), button -> openDefaultsConfirmation())
+				.dimensions(layout.right(), layout.buttonY(), actionWidth, CONTROL_HEIGHT)
+				.build());
 		addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> saveAndClose())
 				.dimensions(layout.right() + actionWidth + 4, layout.buttonY(), actionWidth, CONTROL_HEIGHT)
 				.build());
@@ -321,6 +322,33 @@ public final class AttentionSettingsScreen extends Screen {
 		close();
 	}
 
+	private void openDefaultsConfirmation() {
+		if (client == null) {
+			return;
+		}
+
+		client.setScreen(new ConfirmScreen(
+				confirmed -> {
+					if (confirmed) {
+						loadDraft(AttentionConfig.defaults());
+					}
+
+					if (client != null) {
+						client.setScreen(this);
+					}
+				},
+				Text.literal("Reset to defaults?"),
+				Text.literal("Do you want to reset Attention settings to defaults?"),
+				Text.literal("Reset"),
+				Text.literal("Cancel")
+		) {
+			@Override
+			public boolean shouldPause() {
+				return false;
+			}
+		});
+	}
+
 	private void saveDraft() {
 		configManager.setConfig(new AttentionConfig(
 				detectionRadiusBlocks,
@@ -331,7 +359,7 @@ public final class AttentionSettingsScreen extends Screen {
 				reactToTargetingHostiles,
 				reactToApproachingHostiles,
 				playerFilterMode,
-				AttentionConfig.parsePlayerFilterText(playerFilterText)
+				selectedPlayerNames()
 		));
 	}
 
@@ -577,6 +605,7 @@ public final class AttentionSettingsScreen extends Screen {
 		}
 
 		return client.getNetworkHandler().getPlayerList().stream()
+				.filter(entry -> !isLocalPlayer(entry))
 				.filter(entry -> !playerName(entry).isBlank())
 				.sorted(Comparator.comparing(entry -> normalizePlayerName(playerName(entry))))
 				.toList();
@@ -601,12 +630,15 @@ public final class AttentionSettingsScreen extends Screen {
 	}
 
 	private List<String> selectedPlayerNames() {
-		return AttentionConfig.parsePlayerFilterText(playerFilterText);
+		String localPlayerName = normalizePlayerName(client == null || client.player == null ? "" : client.player.getGameProfile().name());
+		return AttentionConfig.parsePlayerFilterText(playerFilterText).stream()
+				.filter(name -> !name.equals(localPlayerName))
+				.toList();
 	}
 
 	private void toggleListedPlayer(String playerName) {
 		String normalizedName = normalizePlayerName(playerName);
-		if (normalizedName.isEmpty()) {
+		if (normalizedName.isEmpty() || isLocalPlayerName(normalizedName)) {
 			return;
 		}
 
@@ -615,6 +647,19 @@ public final class AttentionSettingsScreen extends Screen {
 			names.add(normalizedName);
 		}
 		playerFilterText = AttentionConfig.formatPlayerFilterText(names);
+	}
+
+	private boolean isLocalPlayer(PlayerListEntry entry) {
+		return client != null
+				&& client.player != null
+				&& (Objects.equals(entry.getProfile().id(), client.player.getGameProfile().id())
+				|| normalizePlayerName(playerName(entry)).equals(normalizePlayerName(client.player.getGameProfile().name())));
+	}
+
+	private boolean isLocalPlayerName(String normalizedName) {
+		return client != null
+				&& client.player != null
+				&& normalizedName.equals(normalizePlayerName(client.player.getGameProfile().name()));
 	}
 
 	private int maxPlayerListScroll(Layout layout) {

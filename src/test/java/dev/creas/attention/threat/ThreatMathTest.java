@@ -40,6 +40,13 @@ class ThreatMathTest {
 	}
 
 	@Test
+	void facingPointUsesEntityYawTowardTarget() {
+		assertTrue(ThreatMath.isFacingPoint(0.0F, 0.0D, 0.0D, 0.0D, 5.0D, 35.0F));
+		assertTrue(ThreatMath.isFacingPoint(-90.0F, 0.0D, 0.0D, 5.0D, 0.0D, 35.0F));
+		assertFalse(ThreatMath.isFacingPoint(90.0F, 0.0D, 0.0D, 5.0D, 0.0D, 35.0F));
+	}
+
+	@Test
 	void primaryThreatPrefersNearestThreatRegardlessOfKind() {
 		Optional<ThreatSelection> selection = ThreatMath.selectPrimaryThreat(Stream.of(
 				new ThreatSnapshot(4, ThreatKind.HOSTILE_APPROACHING, 4.0D, 180.0F),

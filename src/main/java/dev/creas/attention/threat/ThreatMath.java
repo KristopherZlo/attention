@@ -60,6 +60,11 @@ public final class ThreatMath {
 		return dot >= minDot;
 	}
 
+	public static boolean isFacingPoint(float entityYawDeg, double entityX, double entityZ, double targetX, double targetZ, float maxAngleDeg) {
+		float relativeYaw = relativeYawDegrees(entityYawDeg, entityX, entityZ, targetX, targetZ);
+		return Math.abs(relativeYaw) <= maxAngleDeg;
+	}
+
 	public static Optional<ThreatSelection> selectPrimaryThreat(Stream<ThreatSnapshot> threats) {
 		return threats
 				.min(Comparator
