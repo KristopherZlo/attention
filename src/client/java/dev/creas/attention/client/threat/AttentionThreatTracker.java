@@ -3,11 +3,13 @@ package dev.creas.attention.client.threat;
 import dev.creas.attention.AttentionMod;
 import dev.creas.attention.client.config.AttentionConfig;
 import dev.creas.attention.client.hud.AttentionMarkerController;
+import dev.creas.attention.marker.MarkerSegmentMath;
 import dev.creas.attention.threat.ThreatKind;
 import dev.creas.attention.threat.ThreatMath;
 import dev.creas.attention.threat.ThreatSelection;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
+import net.minecraft.sound.SoundCategory;
 import net.minecraft.world.GameMode;
 
 import java.util.Optional;
@@ -18,6 +20,7 @@ public final class AttentionThreatTracker {
 	private static final int REACTION_DELAY_TICKS = 8;
 	private static final int TRACKING_GRACE_TICKS = 40;
 	private static final long APPEARANCE_SOUND_COOLDOWN_TICKS = 20L * 5L;
+	private static final double DIRECTIONAL_SOUND_DISTANCE_BLOCKS = 4.0D;
 
 	private final LiveThreatDetector detector;
 	private final Supplier<AttentionConfig> configSupplier;
@@ -129,7 +132,7 @@ public final class AttentionThreatTracker {
 		markerController.setThreatDistance(selection.snapshot().distanceSq(), detectionRadiusBlocks);
 		markerController.setTargetAngle(selection.markerAngleDeg());
 		markerController.triggerPulse();
-		playAppearanceSound(client);
+		playAppearanceSound(client, selection.markerAngleDeg());
 	}
 
 	private boolean updateTrackedThreat(MinecraftClient client, AttentionMarkerController markerController, AttentionConfig config, boolean requireRelevant) {
@@ -183,14 +186,31 @@ public final class AttentionThreatTracker {
 		scanCooldown = 0;
 	}
 
-	private void playAppearanceSound(MinecraftClient client) {
-		if (client.player == null || !indicatorDisappearedSinceLastSound || tickCounter - lastSoundTick < APPEARANCE_SOUND_COOLDOWN_TICKS) {
+	private void playAppearanceSound(MinecraftClient client, float markerAngleDeg) {
+		if (client.player == null
+				|| client.world == null
+				|| !indicatorDisappearedSinceLastSound
+				|| tickCounter - lastSoundTick < APPEARANCE_SOUND_COOLDOWN_TICKS) {
 			return;
 		}
 
 		lastSoundTick = tickCounter;
 		indicatorDisappearedSinceLastSound = false;
-		client.player.playSound(AttentionMod.THREAT_PING, 0.85F, 1.0F);
+
+		float snappedMarkerAngleDeg = MarkerSegmentMath.snappedAngleDegrees(markerAngleDeg);
+		double worldYawRad = Math.toRadians(client.player.getYaw() + snappedMarkerAngleDeg);
+		double soundX = client.player.getX() - (Math.sin(worldYawRad) * DIRECTIONAL_SOUND_DISTANCE_BLOCKS);
+		double soundZ = client.player.getZ() + (Math.cos(worldYawRad) * DIRECTIONAL_SOUND_DISTANCE_BLOCKS);
+		client.world.playSoundClient(
+				soundX,
+				client.player.getEyeY(),
+				soundZ,
+				AttentionMod.THREAT_PING,
+				SoundCategory.PLAYERS,
+				0.85F,
+				1.0F,
+				false
+		);
 	}
 
 	private record TrackedThreat(int entityId, ThreatKind kind) {

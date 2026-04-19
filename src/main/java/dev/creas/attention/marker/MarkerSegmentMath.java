@@ -27,6 +27,15 @@ public final class MarkerSegmentMath {
 		return new SegmentBlend(upperIndex, lowerIndex, secondaryAlpha);
 	}
 
+	public static int nearestSegmentIndex(float markerAngleDeg) {
+		float wrappedAngle = normalizePositive(markerAngleDeg);
+		return ((int) Math.floor((wrappedAngle + (SEGMENT_STEP_DEGREES * 0.5F)) / SEGMENT_STEP_DEGREES)) % SEGMENT_COUNT;
+	}
+
+	public static float snappedAngleDegrees(float markerAngleDeg) {
+		return normalizeSigned(nearestSegmentIndex(markerAngleDeg) * SEGMENT_STEP_DEGREES);
+	}
+
 	public static float normalizePositive(float angleDeg) {
 		float wrapped = angleDeg % 360.0F;
 		return wrapped < 0.0F ? wrapped + 360.0F : wrapped;

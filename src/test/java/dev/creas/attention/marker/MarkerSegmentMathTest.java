@@ -31,4 +31,12 @@ class MarkerSegmentMathTest {
 		assertEquals(MarkerSegmentMath.SEGMENT_COUNT - 1, blend.secondaryIndex());
 		assertEquals(0.5F, blend.secondaryAlpha(), 0.001F);
 	}
+
+	@Test
+	void snappedAngleUsesNearestFacet() {
+		assertEquals(0, MarkerSegmentMath.nearestSegmentIndex(0.0F));
+		assertEquals(1, MarkerSegmentMath.nearestSegmentIndex(MarkerSegmentMath.SEGMENT_STEP_DEGREES * 0.5F));
+		assertEquals(MarkerSegmentMath.SEGMENT_COUNT - 1, MarkerSegmentMath.nearestSegmentIndex(-20.0F));
+		assertEquals(-22.5F, MarkerSegmentMath.snappedAngleDegrees(-20.0F), 0.001F);
+	}
 }
