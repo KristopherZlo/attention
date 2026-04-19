@@ -608,44 +608,168 @@ public final class AttentionSettingsScreen extends Screen {
 		String normalizedName = normalizePlayerName(playerName);
 		if (normalizedName.isEmpty()) {
 			return;
-	private void saveAndClose() {
-		configManager.setConfig(configManager.getConfig().withIndicatorRadiusPixels(indicatorRadiusPixels));
-		close();
+		}
+
+		LinkedHashSet<String> names = new LinkedHashSet<>(selectedPlayerNames());
+		if (!names.remove(normalizedName)) {
+			names.add(normalizedName);
+		}
+		playerFilterText = AttentionConfig.formatPlayerFilterText(names);
 	}
 
-	private static double valueToRadius(double sliderValue) {
-		double min = AttentionConfig.minIndicatorRadiusPixels();
-		double max = AttentionConfig.maxIndicatorRadiusPixels();
-		return min + clamp01(sliderValue) * (max - min);
+	private int maxPlayerListScroll(Layout layout) {
+		int contentHeight = filteredOnlinePlayers().size() * PLAYER_ROW_HEIGHT;
+		return Math.max(0, contentHeight - playerListBox(layout).height());
 	}
 
-	private static double radiusToValue(double radiusPixels) {
-		double min = AttentionConfig.minIndicatorRadiusPixels();
-		double max = AttentionConfig.maxIndicatorRadiusPixels();
-		return clamp01((radiusPixels - min) / (max - min));
+	private PlayerListBox playerListBox(Layout layout) {
+		int y = layout.contentY() + 72;
+		int height = Math.max(32, layout.buttonY() - y - 4);
+		return new PlayerListBox(layout.left(), y, layout.panelWidth(), height);
 	}
 
-	private static double clamp01(double value) {
-		return Math.max(0.0D, Math.min(1.0D, value));
+	private static int playerListButtonX(PlayerListBox box) {
+		return box.x() + box.width() - PLAYER_LIST_BUTTON_WIDTH - 8;
 	}
 
-	private final class RadiusSliderWidget extends SliderWidget {
-		private RadiusSliderWidget(int x, int y, int width, int height) {
-			super(x, y, width, height, Text.literal(""), radiusToValue(indicatorRadiusPixels));
-			updateMessage();
+	private String trimToWidth(String text, int maxWidth) {
+		if (textRenderer.getWidth(text) <= maxWidth) {
+			return text;
+		}
+
+		return textRenderer.trimToWidth(text, Math.max(0, maxWidth - textRenderer.getWidth("..."))) + "...";
+	}
+
+	private static String playerName(PlayerListEntry entry) {
+		return entry.getProfile().name() == null ? "" : entry.getProfile().name();
+	}
+
+	private static String normalizePlayerName(String playerName) {
+		return playerName == null ? "" : playerName.trim().toLowerCase(Locale.ROOT);
+	}
+
+	private Layout layout() {
+		int panelWidth = Math.min(PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, (width - GUTTER - 32) / 2));
+		int totalWidth = (panelWidth * 2) + GUTTER;
+		int left = Math.max(8, (width - totalWidth) / 2);
+		int right = left + panelWidth + GUTTER;
+		int tabsY = 28;
+		int contentY = 56;
+		int buttonY = Math.max(contentY + 96, height - 26);
+		int previewHeight = Math.max(92, Math.min(MAX_PREVIEW_HEIGHT, buttonY - contentY - 8));
+		return new Layout(left, right, tabsY, contentY, buttonY, panelWidth, previewHeight);
+	}
+
+	private Text playerFilterModeText() {
+		return Text.literal("Player filter mode: " + playerFilterMode.label());
+	}
+
+	private static Text toggleText(String label, boolean enabled) {
+		return Text.literal(label + ": " + (enabled ? "ON" : "OFF"));
+	}
+
+	private static float clamp01(float value) {
+		return Math.max(0.0F, Math.min(1.0F, value));
+	}
+
+	private static double clamp(double value, double min, double max) {
+		return Math.max(min, Math.min(max, value));
+	}
+
+	private static boolean isInside(double mouseX, double mouseY, PlayerListBox box) {
+		return isInside(mouseX, mouseY, box.x(), box.y(), box.width(), box.height());
+	}
+
+	private static boolean isInside(double mouseX, double mouseY, int x, int y, int width, int height) {
+		return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
+	}
+
+	private enum SettingsPage {
+		RADII("Radii"),
+		FILTERS("Filters"),
+		PLAYERS("Players");
+
+		private final String label;
+
+		SettingsPage(String label) {
+			this.label = label;
+		}
+	}
+
+	private record Layout(int left, int right, int tabsY, int contentY, int buttonY, int panelWidth, int previewHeight) {
+	}
+
+	private record PlayerListBox(int x, int y, int width, int height) {
+	}
+
+	private final class ValueSlider extends SliderWidget {
+		private final String label;
+		private final double minValue;
+		private final double maxValue;
+		private final double step;
+		private final DoubleSupplier getter;
+		private final DoubleConsumer setter;
+		private final Function<Double, String> formatter;
+		private boolean syncing;
+
+		private ValueSlider(
+				int x,
+				int y,
+				int width,
+				String label,
+				double minValue,
+				double maxValue,
+				double step,
+				DoubleSupplier getter,
+				DoubleConsumer setter,
+				Function<Double, String> formatter
+		) {
+			super(x, y, width, CONTROL_HEIGHT, Text.literal(""), 0.0D);
+			this.label = label;
+			this.minValue = minValue;
+			this.maxValue = maxValue;
+			this.step = step;
+			this.getter = getter;
+			this.setter = setter;
+			this.formatter = formatter;
+			syncFromState();
 		}
 
 		@Override
 		protected void updateMessage() {
-			setMessage(Text.literal("Marker radius: " + Math.round(indicatorRadiusPixels) + " px"));
+			setMessage(Text.literal(label + ": " + formatter.apply(currentValue())));
 		}
 
 		@Override
 		protected void applyValue() {
-			indicatorRadiusPixels = valueToRadius(value);
+			if (syncing) {
+				return;
+			}
+
+			setter.accept(currentValue());
 			updateMessage();
+		}
+
+		private void syncFromState() {
+			syncing = true;
+			value = toSliderValue(getter.getAsDouble());
+			updateMessage();
+			syncing = false;
+		}
+
+		private double currentValue() {
+			double rawValue = minValue + (clamp01((float) value) * (maxValue - minValue));
+			double snappedValue = Math.round(rawValue / step) * step;
+			return Math.max(minValue, Math.min(maxValue, snappedValue));
+		}
+
+		private double toSliderValue(double actualValue) {
+			double clampedValue = Math.max(minValue, Math.min(maxValue, actualValue));
+			if (maxValue <= minValue) {
+				return 0.0D;
+			}
+
+			return (clampedValue - minValue) / (maxValue - minValue);
 		}
 	}
 }
-
-
