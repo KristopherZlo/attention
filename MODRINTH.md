@@ -11,6 +11,16 @@
 
 ---
 
+## 🎥 Preview
+
+![Attention marker preview](mod-preview.gif)
+
+![Attention settings preview](menu-preview.gif)
+
+<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/XyGBOfPd8nQ" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
+---
+
 > A subtle vanilla-friendly QoL warning marker for off-screen danger.
 
 > More awareness. Less panic.
