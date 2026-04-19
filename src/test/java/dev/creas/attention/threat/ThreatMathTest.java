@@ -51,7 +51,7 @@ class ThreatMathTest {
 		Optional<ThreatSelection> selection = ThreatMath.selectPrimaryThreat(Stream.of(
 				new ThreatSnapshot(4, ThreatKind.HOSTILE_APPROACHING, 4.0D, 180.0F),
 				new ThreatSnapshot(3, ThreatKind.OFFSCREEN_PLAYER, 1.0D, -90.0F),
-				new ThreatSnapshot(2, ThreatKind.HOSTILE_TARGETING, 25.0D, 30.0F)
+				new ThreatSnapshot(2, ThreatKind.HOSTILE_NEARBY, 25.0D, 30.0F)
 		));
 
 		assertTrue(selection.isPresent());

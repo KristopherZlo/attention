@@ -208,7 +208,7 @@ abstract class AttentionSettingsScreenBase extends Screen {
 			reactOnlyInSurvival = !reactOnlyInSurvival;
 			refreshToggleLabels();
 		}).dimensions(x, y, layout.panelWidth(), CONTROL_HEIGHT).build());
-		reactToTargetingHostilesButton = addDrawableChild(ButtonWidget.builder(toggleText("Hostiles targeting you", reactToTargetingHostiles), button -> {
+		reactToTargetingHostilesButton = addDrawableChild(ButtonWidget.builder(toggleText("Nearby hostiles", reactToTargetingHostiles), button -> {
 			reactToTargetingHostiles = !reactToTargetingHostiles;
 			refreshToggleLabels();
 		}).dimensions(x, y + ROW_HEIGHT, layout.panelWidth(), CONTROL_HEIGHT).build());
@@ -380,7 +380,7 @@ abstract class AttentionSettingsScreenBase extends Screen {
 			reactToPlayersButton.setMessage(toggleText("React to players", reactToPlayers));
 		}
 		if (reactToTargetingHostilesButton != null) {
-			reactToTargetingHostilesButton.setMessage(toggleText("Hostiles targeting you", reactToTargetingHostiles));
+			reactToTargetingHostilesButton.setMessage(toggleText("Nearby hostiles", reactToTargetingHostiles));
 		}
 		if (reactToApproachingHostilesButton != null) {
 			reactToApproachingHostilesButton.setMessage(toggleText("Hostiles approaching", reactToApproachingHostiles));

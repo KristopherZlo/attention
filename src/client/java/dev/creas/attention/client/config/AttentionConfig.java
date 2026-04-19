@@ -21,7 +21,7 @@ public record AttentionConfig(
 		PlayerFilterMode playerFilterMode,
 		List<String> playerFilterNames
 ) {
-	private static final double DEFAULT_DETECTION_RADIUS = 24.0D;
+	private static final double DEFAULT_DETECTION_RADIUS = 16.0D;
 	private static final double MIN_DETECTION_RADIUS = 6.0D;
 	private static final double MAX_DETECTION_RADIUS = 96.0D;
 	private static final double DEFAULT_MIN_INDICATOR_RADIUS = 10.0D;
@@ -78,7 +78,7 @@ public record AttentionConfig(
 	public boolean reactsTo(ThreatKind kind) {
 		return switch (kind) {
 			case OFFSCREEN_PLAYER -> reactToPlayers;
-			case HOSTILE_TARGETING -> reactToTargetingHostiles;
+			case HOSTILE_NEARBY -> reactToTargetingHostiles;
 			case HOSTILE_APPROACHING -> reactToApproachingHostiles;
 		};
 	}

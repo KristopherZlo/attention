@@ -1,8 +1,7 @@
 package dev.creas.attention.threat;
 
 public enum ThreatKind {
-	HOSTILE_TARGETING,
+	HOSTILE_NEARBY,
 	OFFSCREEN_PLAYER,
 	HOSTILE_APPROACHING
 }
-

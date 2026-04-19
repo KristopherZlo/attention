@@ -8,7 +8,6 @@ import dev.creas.attention.threat.ThreatSelection;
 import dev.creas.attention.threat.ThreatSnapshot;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.mob.AbstractSkeletonEntity;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.player.PlayerEntity;
 
@@ -18,7 +17,6 @@ import java.util.stream.Stream;
 public final class LiveThreatDetector {
 	private static final float FOV_MARGIN_DEGREES = 8.0F;
 	private static final double APPROACH_DOT_THRESHOLD = 0.6D;
-	private static final float SKELETON_AIM_DEGREES = 38.0F;
 
 	public Optional<ThreatSelection> detect(MinecraftClient client, AttentionConfig config) {
 		PlayerEntity localPlayer = client.player;
@@ -62,7 +60,7 @@ public final class LiveThreatDetector {
 		}
 
 		return switch (kind) {
-			case HOSTILE_TARGETING -> entity instanceof HostileEntity hostile && isHostileTargeting(localPlayer, hostile);
+			case HOSTILE_NEARBY -> entity instanceof HostileEntity hostile && hostile.isAlive();
 			case HOSTILE_APPROACHING -> entity instanceof HostileEntity hostile && isHostileApproaching(localPlayer, hostile);
 			case OFFSCREEN_PLAYER -> entity instanceof PlayerEntity otherPlayer
 					&& otherPlayer.isAlive()
@@ -84,8 +82,8 @@ public final class LiveThreatDetector {
 		}
 
 		return switch (kind) {
-			case HOSTILE_TARGETING, HOSTILE_APPROACHING -> entity instanceof HostileEntity
-					&& (config.reactToTargetingHostiles() || config.reactToApproachingHostiles());
+			case HOSTILE_NEARBY -> entity instanceof HostileEntity && config.reactToTargetingHostiles();
+			case HOSTILE_APPROACHING -> entity instanceof HostileEntity && config.reactToApproachingHostiles();
 			case OFFSCREEN_PLAYER -> entity instanceof PlayerEntity otherPlayer
 					&& otherPlayer.isAlive()
 					&& !otherPlayer.isSpectator()
@@ -107,8 +105,8 @@ public final class LiveThreatDetector {
 			return Optional.empty();
 		}
 
-		if (config.reactToTargetingHostiles() && isHostileTargeting(localPlayer, hostile)) {
-			return Optional.of(new ThreatSnapshot(hostile.getId(), ThreatKind.HOSTILE_TARGETING, distanceSq, relativeYaw));
+		if (config.reactToTargetingHostiles()) {
+			return Optional.of(new ThreatSnapshot(hostile.getId(), ThreatKind.HOSTILE_NEARBY, distanceSq, relativeYaw));
 		}
 
 		if (config.reactToApproachingHostiles() && isHostileApproaching(localPlayer, hostile)) {
@@ -145,24 +143,6 @@ public final class LiveThreatDetector {
 				APPROACH_DOT_THRESHOLD
 		);
 	}
-
-	private static boolean isHostileTargeting(PlayerEntity localPlayer, HostileEntity hostile) {
-		if (hostile.getTarget() == localPlayer) {
-			return true;
-		}
-
-		return hostile instanceof AbstractSkeletonEntity
-				&& hostile.canSee(localPlayer)
-				&& ThreatMath.isFacingPoint(
-						hostile.getYaw(),
-						hostile.getX(),
-						hostile.getZ(),
-						localPlayer.getX(),
-						localPlayer.getZ(),
-						SKELETON_AIM_DEGREES
-				);
-	}
-
 	private static float relativeYawTo(MinecraftClient client, PlayerEntity localPlayer, Entity entity) {
 		return ThreatMath.relativeYawDegrees(
 				localPlayer.getYaw(),
