@@ -13,6 +13,10 @@ public final class AttentionSettingsScreen extends AttentionSettingsScreenBase {
 
 	@Override
 	public boolean keyPressed(KeyInput keyInput) {
+		if ((keyInput.key() == GLFW.GLFW_KEY_ENTER || keyInput.key() == GLFW.GLFW_KEY_KP_ENTER) && addPlayerFromSearchIfFocused()) {
+			return true;
+		}
+
 		if (keyInput.key() == GLFW.GLFW_KEY_TAB && completePlayerSearchName()) {
 			return true;
 		}
@@ -22,10 +26,10 @@ public final class AttentionSettingsScreen extends AttentionSettingsScreenBase {
 
 	@Override
 	public boolean mouseClicked(Click click, boolean doubleClick) {
-		if (super.mouseClicked(click, doubleClick)) {
+		if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && handlePlayerListClick(click.x(), click.y())) {
 			return true;
 		}
 
-		return click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && handlePlayerListClick(click.x(), click.y());
+		return super.mouseClicked(click, doubleClick);
 	}
 }

@@ -12,9 +12,6 @@
 	"icon": "assets/attention/icon.png",
 	"environment": "client",
 	"entrypoints": {
-		"main": [
-			"dev.creas.attention.AttentionMod"
-		],
 		"client": [
 			"dev.creas.attention.client.AttentionClient"
 		],

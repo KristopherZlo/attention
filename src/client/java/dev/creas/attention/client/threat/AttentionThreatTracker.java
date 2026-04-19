@@ -1,6 +1,5 @@
 package dev.creas.attention.client.threat;
 
-import dev.creas.attention.AttentionMod;
 import dev.creas.attention.client.config.AttentionConfig;
 import dev.creas.attention.client.hud.AttentionMarkerController;
 import dev.creas.attention.marker.MarkerSegmentMath;
@@ -10,6 +9,7 @@ import dev.creas.attention.threat.ThreatSelection;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
 import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.world.GameMode;
 
 import java.util.Optional;
@@ -205,7 +205,7 @@ public final class AttentionThreatTracker {
 				soundX,
 				client.player.getEyeY(),
 				soundZ,
-				AttentionMod.THREAT_PING,
+				SoundEvents.BLOCK_AMETHYST_BLOCK_RESONATE,
 				SoundCategory.PLAYERS,
 				0.85F,
 				1.0F,

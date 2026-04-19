@@ -33,6 +33,7 @@ abstract class AttentionSettingsScreenBase extends Screen {
 	private static final int CONTROL_HEIGHT = 20;
 	private static final int ROW_HEIGHT = 24;
 	private static final int PLAYER_ROW_HEIGHT = 28;
+	private static final int LISTED_PLAYER_ROW_HEIGHT = 24;
 	private static final int PLAYER_FACE_SIZE = 18;
 	private static final int PLAYER_LIST_BUTTON_WIDTH = 54;
 	private static final int GUTTER = 12;
@@ -52,6 +53,7 @@ abstract class AttentionSettingsScreenBase extends Screen {
 	private String playerFilterText;
 	private String playerSearchText = "";
 	private double playerListScroll;
+	private double listedPlayerListScroll;
 
 	private ValueSlider detectionRadiusSlider;
 	private ValueSlider minRadiusSlider;
@@ -61,6 +63,7 @@ abstract class AttentionSettingsScreenBase extends Screen {
 	private ButtonWidget reactToTargetingHostilesButton;
 	private ButtonWidget reactToApproachingHostilesButton;
 	private ButtonWidget playerFilterModeButton;
+	private ButtonWidget addPlayerButton;
 	private TextFieldWidget playerSearchField;
 
 	AttentionSettingsScreenBase(Screen parent, AttentionConfigManager configManager) {
@@ -80,6 +83,7 @@ abstract class AttentionSettingsScreenBase extends Screen {
 		reactToTargetingHostilesButton = null;
 		reactToApproachingHostilesButton = null;
 		playerFilterModeButton = null;
+		addPlayerButton = null;
 		playerSearchField = null;
 
 		Layout layout = layout();
@@ -109,7 +113,11 @@ abstract class AttentionSettingsScreenBase extends Screen {
 	public void render(DrawContext context, int mouseX, int mouseY, float deltaTicks) {
 		Layout layout = layout();
 		context.fill(0, 0, width, height, 0xAA101010);
-		drawPreview(context, layout.right(), layout.contentY(), layout.panelWidth(), layout.previewHeight());
+		if (page == SettingsPage.PLAYERS) {
+			drawListedPlayersPanel(context, layout.right(), layout.contentY(), layout.panelWidth(), layout.previewHeight(), mouseX, mouseY);
+		} else {
+			drawPreview(context, layout.right(), layout.contentY(), layout.panelWidth(), layout.previewHeight());
+		}
 		drawLabels(context, layout);
 		if (page == SettingsPage.PLAYERS) {
 			drawPlayerList(context, layout, mouseX, mouseY);
@@ -127,9 +135,16 @@ abstract class AttentionSettingsScreenBase extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-		if (page == SettingsPage.PLAYERS && isInside(mouseX, mouseY, playerListBox(layout()))) {
-			playerListScroll = clamp(playerListScroll - (verticalAmount * PLAYER_ROW_HEIGHT), 0.0D, maxPlayerListScroll(layout()));
-			return true;
+		if (page == SettingsPage.PLAYERS) {
+			Layout layout = layout();
+			if (isInside(mouseX, mouseY, playerListBox(layout))) {
+				playerListScroll = clamp(playerListScroll - (verticalAmount * PLAYER_ROW_HEIGHT), 0.0D, maxPlayerListScroll(layout));
+				return true;
+			}
+			if (isInside(mouseX, mouseY, listedPlayersBox(layout))) {
+				listedPlayerListScroll = clamp(listedPlayerListScroll - (verticalAmount * LISTED_PLAYER_ROW_HEIGHT), 0.0D, maxListedPlayersScroll(layout));
+				return true;
+			}
 		}
 
 		return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
@@ -225,14 +240,18 @@ abstract class AttentionSettingsScreenBase extends Screen {
 	private void initPlayersPage(Layout layout) {
 		int x = layout.left();
 		int y = layout.contentY() + 24;
-		playerSearchField = addDrawableChild(new TextFieldWidget(textRenderer, x, y, layout.panelWidth(), CONTROL_HEIGHT, Text.literal("Player search")));
+		int addButtonWidth = 58;
+		int searchFieldWidth = layout.panelWidth() - addButtonWidth - 4;
+		playerSearchField = addDrawableChild(new TextFieldWidget(textRenderer, x, y, searchFieldWidth, CONTROL_HEIGHT, Text.literal("Player search")));
 		playerSearchField.setMaxLength(64);
 		playerSearchField.setText(playerSearchText);
-		playerSearchField.setPlaceholder(Text.literal("Filter online players"));
+		playerSearchField.setPlaceholder(Text.literal("Search online or add name"));
 		playerSearchField.setChangedListener(text -> {
 			playerSearchText = text;
 			playerListScroll = 0.0D;
+			refreshPlayerFilterState();
 		});
+		addPlayerButton = addDrawableChild(ButtonWidget.builder(Text.literal("Add"), button -> addPlayerFromSearch()).dimensions(x + searchFieldWidth + 4, y, addButtonWidth, CONTROL_HEIGHT).build());
 
 		playerFilterModeButton = addDrawableChild(ButtonWidget.builder(playerFilterModeText(), button -> {
 			playerFilterMode = playerFilterMode.next();
@@ -397,6 +416,12 @@ abstract class AttentionSettingsScreenBase extends Screen {
 
 		playerSearchField.active = true;
 		playerSearchField.setEditable(true);
+		if (addPlayerButton != null) {
+			String normalizedName = normalizePlayerName(playerSearchText);
+			addPlayerButton.active = !normalizedName.isEmpty()
+					&& !isLocalPlayerName(normalizedName)
+					&& !selectedPlayerNames().contains(normalizedName);
+		}
 	}
 
 	protected final boolean completePlayerSearchName() {
@@ -486,6 +511,48 @@ abstract class AttentionSettingsScreenBase extends Screen {
 		drawPlayerListScrollbar(context, box, players.size(), maxScroll);
 	}
 
+	private void drawListedPlayersPanel(DrawContext context, int x, int y, int panelWidth, int panelHeight, int mouseX, int mouseY) {
+		int panelColor = 0x66111111;
+		int borderColor = 0x99FFFFFF;
+		context.fill(x, y, x + panelWidth, y + panelHeight, panelColor);
+		context.fill(x, y, x + panelWidth, y + 1, borderColor);
+		context.fill(x, y + panelHeight - 1, x + panelWidth, y + panelHeight, borderColor);
+		context.fill(x, y, x + 1, y + panelHeight, borderColor);
+		context.fill(x + panelWidth - 1, y, x + panelWidth, y + panelHeight, borderColor);
+
+		List<String> listedNames = selectedPlayerNames();
+		context.drawTextWithShadow(textRenderer, Text.literal("Listed players"), x + 8, y + 8, 0xFFFFFFFF);
+		context.drawTextWithShadow(textRenderer, Text.literal(Integer.toString(listedNames.size())), x + panelWidth - 16, y + 8, 0xFFA0A0A0);
+
+		PlayerListBox box = listedPlayersBox(x, y, panelWidth, panelHeight);
+		int maxScroll = Math.max(0, (listedNames.size() * LISTED_PLAYER_ROW_HEIGHT) - box.height());
+		listedPlayerListScroll = clamp(listedPlayerListScroll, 0.0D, maxScroll);
+		int scroll = (int) Math.floor(listedPlayerListScroll);
+
+		context.fill(box.x(), box.y(), box.x() + box.width(), box.y() + box.height(), 0x55111111);
+		context.fill(box.x(), box.y(), box.x() + box.width(), box.y() + 1, 0x66FFFFFF);
+		context.fill(box.x(), box.y() + box.height() - 1, box.x() + box.width(), box.y() + box.height(), 0x44FFFFFF);
+
+		if (listedNames.isEmpty()) {
+			context.drawCenteredTextWithShadow(textRenderer, Text.literal("No listed players"), box.x() + (box.width() / 2), box.y() + 18, 0xFFA0A0A0);
+			return;
+		}
+
+		context.enableScissor(box.x(), box.y(), box.x() + box.width(), box.y() + box.height());
+		int firstIndex = Math.max(0, scroll / LISTED_PLAYER_ROW_HEIGHT);
+		int rowY = box.y() + (firstIndex * LISTED_PLAYER_ROW_HEIGHT) - scroll;
+
+		for (int index = firstIndex; index < listedNames.size() && rowY < box.y() + box.height(); index++) {
+			if (rowY + LISTED_PLAYER_ROW_HEIGHT >= box.y()) {
+				drawListedPlayerRow(context, box, listedNames.get(index), rowY, mouseX, mouseY);
+			}
+			rowY += LISTED_PLAYER_ROW_HEIGHT;
+		}
+
+		context.disableScissor();
+		drawPlayerListScrollbar(context, box, listedNames.size(), maxScroll, LISTED_PLAYER_ROW_HEIGHT);
+	}
+
 	private void drawPlayerRow(DrawContext context, PlayerListBox box, PlayerListEntry entry, List<String> listedNames, int rowY, int mouseX, int mouseY) {
 		String playerName = playerName(entry);
 		boolean listed = listedNames.contains(normalizePlayerName(playerName));
@@ -513,15 +580,32 @@ abstract class AttentionSettingsScreenBase extends Screen {
 		context.drawCenteredTextWithShadow(textRenderer, Text.literal(label), x + (width / 2), y + 5, textColor);
 	}
 
+	private void drawListedPlayerRow(DrawContext context, PlayerListBox box, String normalizedPlayerName, int rowY, int mouseX, int mouseY) {
+		int buttonX = playerListButtonX(box);
+		int buttonY = rowY + 3;
+		boolean hovered = isInside(mouseX, mouseY, buttonX, buttonY, PLAYER_LIST_BUTTON_WIDTH, 18);
+		int rowColor = hovered ? 0x331F1F1F : 0x22111111;
+		String label = displayListedPlayerName(normalizedPlayerName);
+
+		context.fill(box.x() + 1, rowY, box.x() + box.width() - 1, rowY + LISTED_PLAYER_ROW_HEIGHT - 1, rowColor);
+		context.drawTextWithShadow(textRenderer, trimToWidth(label, buttonX - box.x() - 10), box.x() + 6, rowY + 8, 0xFFFFFFFF);
+		drawListButton(context, buttonX, buttonY, PLAYER_LIST_BUTTON_WIDTH, 18, "Remove", true, hovered);
+	}
+
 	private void drawPlayerListScrollbar(DrawContext context, PlayerListBox box, int playerCount, int maxScroll) {
+		drawPlayerListScrollbar(context, box, playerCount, maxScroll, PLAYER_ROW_HEIGHT);
+	}
+
+	private void drawPlayerListScrollbar(DrawContext context, PlayerListBox box, int playerCount, int maxScroll, int rowHeight) {
 		if (maxScroll <= 0) {
 			return;
 		}
 
-		int contentHeight = playerCount * PLAYER_ROW_HEIGHT;
+		int contentHeight = playerCount * rowHeight;
 		int trackX = box.x() + box.width() - 3;
 		int thumbHeight = Math.max(12, (box.height() * box.height()) / contentHeight);
-		int thumbY = box.y() + (int) ((box.height() - thumbHeight) * (playerListScroll / maxScroll));
+		double scroll = rowHeight == PLAYER_ROW_HEIGHT ? playerListScroll : listedPlayerListScroll;
+		int thumbY = box.y() + (int) ((box.height() - thumbHeight) * (scroll / maxScroll));
 
 		context.fill(trackX, box.y() + 2, trackX + 1, box.y() + box.height() - 2, 0x44FFFFFF);
 		context.fill(trackX - 1, thumbY, trackX + 2, thumbY + thumbHeight, 0xAAFFFFFF);
@@ -548,6 +632,10 @@ abstract class AttentionSettingsScreenBase extends Screen {
 			return false;
 		}
 
+		if (handleListedPlayersClick(mouseX, mouseY)) {
+			return true;
+		}
+
 		Layout layout = layout();
 		PlayerListBox box = playerListBox(layout);
 		if (!isInside(mouseX, mouseY, box)) {
@@ -570,6 +658,14 @@ abstract class AttentionSettingsScreenBase extends Screen {
 
 		toggleListedPlayer(playerName(players.get(index)));
 		return true;
+	}
+
+	protected final boolean addPlayerFromSearchIfFocused() {
+		return page == SettingsPage.PLAYERS
+				&& playerSearchField != null
+				&& playerSearchField.active
+				&& playerSearchField.isFocused()
+				&& addPlayerFromSearch();
 	}
 
 	private List<PlayerListEntry> filteredOnlinePlayers() {
@@ -627,6 +723,68 @@ abstract class AttentionSettingsScreenBase extends Screen {
 			names.add(normalizedName);
 		}
 		playerFilterText = AttentionConfig.formatPlayerFilterText(names);
+		refreshPlayerFilterState();
+	}
+
+	private boolean addPlayerFromSearch() {
+		String input = playerSearchText;
+		String normalizedName = normalizePlayerName(input);
+		if (normalizedName.isEmpty() || isLocalPlayerName(normalizedName)) {
+			return false;
+		}
+
+		LinkedHashSet<String> names = new LinkedHashSet<>(selectedPlayerNames());
+		boolean added = names.add(normalizedName);
+		playerFilterText = AttentionConfig.formatPlayerFilterText(names);
+		if (added) {
+			playerSearchText = "";
+			playerListScroll = 0.0D;
+			listedPlayerListScroll = 0.0D;
+			if (playerSearchField != null) {
+				playerSearchField.setText("");
+				playerSearchField.setCursorToEnd(false);
+			}
+		}
+		refreshPlayerFilterState();
+		return added;
+	}
+
+	private boolean handleListedPlayersClick(double mouseX, double mouseY) {
+		Layout layout = layout();
+		PlayerListBox box = listedPlayersBox(layout);
+		if (!isInside(mouseX, mouseY, box)) {
+			return false;
+		}
+
+		List<String> listedNames = selectedPlayerNames();
+		listedPlayerListScroll = clamp(listedPlayerListScroll, 0.0D, maxListedPlayersScroll(layout));
+		int index = (int) ((mouseY - box.y() + listedPlayerListScroll) / LISTED_PLAYER_ROW_HEIGHT);
+		if (index < 0 || index >= listedNames.size()) {
+			return false;
+		}
+
+		int rowY = box.y() + (index * LISTED_PLAYER_ROW_HEIGHT) - (int) Math.floor(listedPlayerListScroll);
+		int buttonX = playerListButtonX(box);
+		int buttonY = rowY + 3;
+		if (!isInside(mouseX, mouseY, buttonX, buttonY, PLAYER_LIST_BUTTON_WIDTH, 18)) {
+			return false;
+		}
+
+		removeListedPlayer(listedNames.get(index));
+		return true;
+	}
+
+	private void removeListedPlayer(String playerName) {
+		String normalizedName = normalizePlayerName(playerName);
+		if (normalizedName.isEmpty()) {
+			return;
+		}
+
+		LinkedHashSet<String> names = new LinkedHashSet<>(selectedPlayerNames());
+		if (names.remove(normalizedName)) {
+			playerFilterText = AttentionConfig.formatPlayerFilterText(names);
+			refreshPlayerFilterState();
+		}
 	}
 
 	private boolean isLocalPlayer(PlayerListEntry entry) {
@@ -647,10 +805,26 @@ abstract class AttentionSettingsScreenBase extends Screen {
 		return Math.max(0, contentHeight - playerListBox(layout).height());
 	}
 
+	private int maxListedPlayersScroll(Layout layout) {
+		int contentHeight = selectedPlayerNames().size() * LISTED_PLAYER_ROW_HEIGHT;
+		return Math.max(0, contentHeight - listedPlayersBox(layout).height());
+	}
+
 	private PlayerListBox playerListBox(Layout layout) {
 		int y = layout.contentY() + 72;
 		int height = Math.max(32, layout.buttonY() - y - 4);
 		return new PlayerListBox(layout.left(), y, layout.panelWidth(), height);
+	}
+
+	private PlayerListBox listedPlayersBox(Layout layout) {
+		return listedPlayersBox(layout.right(), layout.contentY(), layout.panelWidth(), layout.previewHeight());
+	}
+
+	private static PlayerListBox listedPlayersBox(int x, int y, int panelWidth, int panelHeight) {
+		int listX = x + 4;
+		int listY = y + 24;
+		int listHeight = Math.max(32, panelHeight - 28);
+		return new PlayerListBox(listX, listY, panelWidth - 8, listHeight);
 	}
 
 	private static int playerListButtonX(PlayerListBox box) {
@@ -667,6 +841,14 @@ abstract class AttentionSettingsScreenBase extends Screen {
 
 	private static String playerName(PlayerListEntry entry) {
 		return GameProfileCompat.name(entry.getProfile());
+	}
+
+	private String displayListedPlayerName(String normalizedPlayerName) {
+		return onlinePlayers().stream()
+				.map(AttentionSettingsScreenBase::playerName)
+				.filter(name -> normalizePlayerName(name).equals(normalizedPlayerName))
+				.findFirst()
+				.orElse(normalizedPlayerName);
 	}
 
 	private static String normalizePlayerName(String playerName) {
