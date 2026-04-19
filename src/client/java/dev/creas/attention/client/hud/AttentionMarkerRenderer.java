@@ -9,6 +9,7 @@ import org.joml.Matrix3x2fStack;
 public final class AttentionMarkerRenderer {
 	private static final float MIN_RENDER_ALPHA = 0.02F;
 	private static final int MARKER_COLOR = 0xFFFFFFFF;
+	private static final float SECONDARY_SEGMENT_SHARED_SHIFT_PX = 0.45F;
 
 	private final AttentionMarkerState state;
 
@@ -35,19 +36,32 @@ public final class AttentionMarkerRenderer {
 	public static void drawMarker(DrawContext context, int centerX, int centerY, float radius, float angleDeg, float alpha) {
 		float halfLength = MarkerSegmentMath.segmentHalfLength(radius);
 		MarkerSegmentMath.SegmentBlend blend = MarkerSegmentMath.blendForAngle(angleDeg);
+		float primaryAlpha = alpha;
 
-		for (int segmentIndex = 0; segmentIndex < MarkerSegmentMath.SEGMENT_COUNT; segmentIndex++) {
-			float segmentAlpha = segmentStrength(segmentIndex, blend) * alpha;
+		if (primaryAlpha > 0.0F) {
+			drawSegment(context, centerX, centerY, radius, halfLength, halfLength, blend.primaryIndex(), primaryAlpha, 0.0F);
+		}
 
-			if (segmentAlpha <= 0.0F) {
-				continue;
-			}
-
-			drawSegment(context, centerX, centerY, radius, halfLength, segmentIndex, segmentAlpha);
+		float secondaryAlpha = blend.secondaryAlpha() * alpha;
+		if (secondaryAlpha > 0.0F) {
+			float localShiftPx = blend.secondarySharesLowerBoundary()
+					? -SECONDARY_SEGMENT_SHARED_SHIFT_PX
+					: SECONDARY_SEGMENT_SHARED_SHIFT_PX;
+			drawSegment(context, centerX, centerY, radius, halfLength, halfLength, blend.secondaryIndex(), secondaryAlpha, localShiftPx);
 		}
 	}
 
-	private static void drawSegment(DrawContext context, int centerX, int centerY, float radius, float halfLength, int segmentIndex, float alpha) {
+	private static void drawSegment(
+			DrawContext context,
+			int centerX,
+			int centerY,
+			float radius,
+			float lowerSideLength,
+			float upperSideLength,
+			int segmentIndex,
+			float alpha,
+			float localShiftPx
+	) {
 		float markerAngleDeg = MarkerSegmentMath.normalizeSigned(segmentIndex * MarkerSegmentMath.SEGMENT_STEP_DEGREES);
 		float screenAngleDeg = markerAngleDeg - 90.0F;
 		double radialAngleRad = Math.toRadians(screenAngleDeg);
@@ -59,8 +73,9 @@ public final class AttentionMarkerRenderer {
 		matrices.pushMatrix();
 		matrices.translate(segmentCenterX, segmentCenterY);
 		matrices.rotate(tangentAngleRad);
-		int left = Math.round(-halfLength);
-		int right = Math.max(left + 1, Math.round(halfLength));
+		matrices.translate(localShiftPx, 0.0F);
+		int left = Math.round(-upperSideLength);
+		int right = Math.max(left + 1, Math.round(lowerSideLength));
 		context.fill(
 				left,
 				-1,
@@ -69,18 +84,6 @@ public final class AttentionMarkerRenderer {
 				colorWithAlpha(MARKER_COLOR, alpha)
 		);
 		matrices.popMatrix();
-	}
-
-	private static float segmentStrength(int segmentIndex, MarkerSegmentMath.SegmentBlend blend) {
-		if (segmentIndex == blend.primaryIndex()) {
-			return 1.0F;
-		}
-
-		if (segmentIndex == blend.secondaryIndex()) {
-			return blend.secondaryAlpha();
-		}
-
-		return 0.0F;
 	}
 
 	private static float interpolateAngle(float previous, float current, float delta) {

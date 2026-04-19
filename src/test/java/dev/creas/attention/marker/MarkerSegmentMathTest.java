@@ -39,4 +39,13 @@ class MarkerSegmentMathTest {
 		assertEquals(MarkerSegmentMath.SEGMENT_COUNT - 1, MarkerSegmentMath.nearestSegmentIndex(-20.0F));
 		assertEquals(-22.5F, MarkerSegmentMath.snappedAngleDegrees(-20.0F), 0.001F);
 	}
+
+	@Test
+	void secondarySharedBoundaryTracksBlendDirection() {
+		MarkerSegmentMath.SegmentBlend forwardBlend = MarkerSegmentMath.blendForAngle(MarkerSegmentMath.SEGMENT_STEP_DEGREES * 0.25F);
+		MarkerSegmentMath.SegmentBlend wrappedBlend = MarkerSegmentMath.blendForAngle(360.0F - (MarkerSegmentMath.SEGMENT_STEP_DEGREES * 0.25F));
+
+		assertEquals(true, forwardBlend.secondarySharesLowerBoundary());
+		assertEquals(false, wrappedBlend.secondarySharesLowerBoundary());
+	}
 }

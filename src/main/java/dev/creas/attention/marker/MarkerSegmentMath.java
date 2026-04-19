@@ -47,5 +47,8 @@ public final class MarkerSegmentMath {
 	}
 
 	public record SegmentBlend(int primaryIndex, int secondaryIndex, float secondaryAlpha) {
+		public boolean secondarySharesLowerBoundary() {
+			return secondaryIndex == ((primaryIndex + 1) % SEGMENT_COUNT);
+		}
 	}
 }
