@@ -1,5 +1,5 @@
 param(
-	[string] $JavaHome = "C:\Program Files\Eclipse Adoptium\jdk-25.0.2.10-hotspot",
+	[string] $JavaHome = "C:\Program Files\Eclipse Adoptium\jdk-21.0.6.7-hotspot",
 	[int] $StartupTimeoutSeconds = 120
 )
 

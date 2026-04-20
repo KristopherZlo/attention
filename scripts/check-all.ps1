@@ -1,5 +1,5 @@
 param(
-	[string] $JavaHome = "C:\Program Files\Eclipse Adoptium\jdk-25.0.2.10-hotspot"
+	[string] $JavaHome = "C:\Program Files\Eclipse Adoptium\jdk-21.0.6.7-hotspot"
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,31 +32,9 @@ if ($root.Contains("!")) {
 }
 
 $gradle = Join-Path $safeRoot "gradlew.bat"
-$versions = @("1.21.8", "1.21.9", "1.21.10", "1.21.11")
-$fabricApiVersions = @{
-	"1.21.8" = "0.136.1+1.21.8"
-	"1.21.9" = "0.134.1+1.21.9"
-	"1.21.10" = "0.138.4+1.21.10"
-	"1.21.11" = "0.141.3+1.21.11"
-}
-$yarnMappings = @{
-	"1.21.8" = "1.21.8+build.1"
-	"1.21.9" = "1.21.9+build.1"
-	"1.21.10" = "1.21.10+build.3"
-	"1.21.11" = "1.21.11+build.4"
-}
-
 Push-Location $safeRoot
 try {
 	& $gradle clean test build --no-daemon
-
-	foreach ($version in $versions) {
-		& $gradle build `
-			"-Pminecraft_version=$version" `
-			"-Pyarn_mappings=$($yarnMappings[$version])" `
-			"-Pfabric_api_version=$($fabricApiVersions[$version])" `
-			"--no-daemon"
-	}
 } finally {
 	Pop-Location
 }
@@ -70,3 +48,5 @@ if ($safeRoot -ne $root) {
 		Copy-Item -Path (Join-Path $sourceLibs "*") -Destination $targetLibs -Force
 	}
 }
+
+& (Join-Path $root "scripts\verify-launches.ps1") -JavaHome $JavaHome

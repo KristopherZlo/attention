@@ -114,7 +114,7 @@ Yes. You can disable them completely or filter them with the player list.
 
 ## 📁 Additional Info
 
-* Supports Minecraft `1.21.8 - 1.21.11`
+* Supports Minecraft `1.21.8 - 1.21.11` with one shared jar
 * Fabric only
 * Client-side only
 * GPL-3.0 License

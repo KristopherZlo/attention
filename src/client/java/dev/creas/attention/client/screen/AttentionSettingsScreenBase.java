@@ -16,6 +16,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -54,6 +55,10 @@ abstract class AttentionSettingsScreenBase extends Screen {
 	private String playerSearchText = "";
 	private double playerListScroll;
 	private double listedPlayerListScroll;
+	private boolean enterPressedLastTick;
+	private boolean tabPressedLastTick;
+	private boolean leftMousePressedLastTick;
+	private boolean playerSearchFocusedLastTick;
 
 	private ValueSlider detectionRadiusSlider;
 	private ValueSlider minRadiusSlider;
@@ -107,6 +112,7 @@ abstract class AttentionSettingsScreenBase extends Screen {
 		addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> saveAndClose())
 				.dimensions(layout.right() + actionWidth + 4, layout.buttonY(), actionWidth, CONTROL_HEIGHT)
 				.build());
+		syncPolledInputState();
 	}
 
 	@Override
@@ -131,6 +137,12 @@ abstract class AttentionSettingsScreenBase extends Screen {
 	@Override
 	public boolean shouldPause() {
 		return true;
+	}
+
+	@Override
+	public void tick() {
+		super.tick();
+		handlePolledInput();
 	}
 
 	@Override
@@ -429,7 +441,7 @@ abstract class AttentionSettingsScreenBase extends Screen {
 				|| client.getNetworkHandler() == null
 				|| playerSearchField == null
 				|| !playerSearchField.active
-				|| !playerSearchField.isFocused()) {
+				|| !isPlayerSearchFocused()) {
 			return false;
 		}
 
@@ -453,6 +465,7 @@ abstract class AttentionSettingsScreenBase extends Screen {
 		playerSearchText = completion;
 		playerSearchField.setText(completion);
 		playerSearchField.setCursorToEnd(false);
+		playerSearchField.setFocused(true);
 		playerListScroll = 0.0D;
 		return true;
 	}
@@ -664,8 +677,75 @@ abstract class AttentionSettingsScreenBase extends Screen {
 		return page == SettingsPage.PLAYERS
 				&& playerSearchField != null
 				&& playerSearchField.active
-				&& playerSearchField.isFocused()
+				&& isPlayerSearchFocused()
 				&& addPlayerFromSearch();
+	}
+
+	private void handlePolledInput() {
+		if (client == null) {
+			enterPressedLastTick = false;
+			tabPressedLastTick = false;
+			leftMousePressedLastTick = false;
+			playerSearchFocusedLastTick = false;
+			return;
+		}
+
+		boolean enterPressed = isAnyKeyPressed(GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER);
+		if (enterPressed && !enterPressedLastTick) {
+			addPlayerFromSearchIfFocused();
+		}
+		enterPressedLastTick = enterPressed;
+
+		boolean tabPressed = isAnyKeyPressed(GLFW.GLFW_KEY_TAB);
+		if (tabPressed && !tabPressedLastTick) {
+			completePlayerSearchName();
+		}
+		tabPressedLastTick = tabPressed;
+
+		boolean leftMousePressed = isLeftMousePressed();
+		if (leftMousePressed && !leftMousePressedLastTick) {
+			handlePlayerListClick(scaledMouseX(), scaledMouseY());
+		}
+		leftMousePressedLastTick = leftMousePressed;
+		playerSearchFocusedLastTick = playerSearchField != null && playerSearchField.isFocused();
+	}
+
+	private void syncPolledInputState() {
+		enterPressedLastTick = isAnyKeyPressed(GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER);
+		tabPressedLastTick = isAnyKeyPressed(GLFW.GLFW_KEY_TAB);
+		leftMousePressedLastTick = isLeftMousePressed();
+		playerSearchFocusedLastTick = playerSearchField != null && playerSearchField.isFocused();
+	}
+
+	private boolean isPlayerSearchFocused() {
+		return playerSearchField != null && (playerSearchField.isFocused() || playerSearchFocusedLastTick);
+	}
+
+	private boolean isAnyKeyPressed(int... keyCodes) {
+		if (client == null) {
+			return false;
+		}
+
+		long windowHandle = client.getWindow().getHandle();
+		for (int keyCode : keyCodes) {
+			if (GLFW.glfwGetKey(windowHandle, keyCode) == GLFW.GLFW_PRESS) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private boolean isLeftMousePressed() {
+		return client != null && GLFW.glfwGetMouseButton(client.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
+	}
+
+	private double scaledMouseX() {
+		return client == null ? 0.0D : client.mouse.getScaledX(client.getWindow());
+	}
+
+	private double scaledMouseY() {
+		return client == null ? 0.0D : client.mouse.getScaledY(client.getWindow());
 	}
 
 	private List<PlayerListEntry> filteredOnlinePlayers() {

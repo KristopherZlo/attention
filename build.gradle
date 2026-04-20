@@ -32,7 +32,6 @@ if (!supportedMinecraftVersions.contains(selectedMinecraftVersion)) {
 
 def selectedFabricApiVersion = project.findProperty("fabric_api_version") ?: fabricApiVersions[selectedMinecraftVersion]
 def selectedYarnMappings = project.findProperty("yarn_mappings") ?: yarnMappings[selectedMinecraftVersion]
-def selectedClientCompatSource = selectedMinecraftVersion == "1.21.8" ? "src/clientLegacy/java" : "src/clientModern/java"
 
 loom {
 	splitEnvironmentSourceSets()
@@ -53,10 +52,6 @@ loom {
 	}
 }
 
-sourceSets.named("client") {
-	java.srcDir selectedClientCompatSource
-}
-
 repositories {
 	maven {
 		name = "TerraformersMC"
@@ -70,7 +65,6 @@ dependencies {
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${selectedFabricApiVersion}"
 	modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
-	modLocalRuntime "com.terraformersmc:modmenu:${project.modmenu_version}"
 
 	testImplementation platform("org.junit:junit-bom:5.10.2")
 	testImplementation "org.junit.jupiter:junit-jupiter"

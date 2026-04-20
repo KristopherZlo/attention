@@ -95,10 +95,10 @@ If you use Mod Menu, the settings screen is also exposed there.
 
 | Minecraft | Status | Notes |
 | --- | --- | --- |
-| `1.21.8` | Supported | Uses the legacy client compatibility path. |
-| `1.21.9` | Supported | Uses the modern client compatibility path. |
-| `1.21.10` | Supported | Uses the modern client compatibility path. |
-| `1.21.11` | Supported | Uses the modern client compatibility path. |
+| `1.21.8` | Supported | Runs from the shared universal jar. |
+| `1.21.9` | Supported | Runs from the shared universal jar. |
+| `1.21.10` | Supported | Runs from the shared universal jar. |
+| `1.21.11` | Supported | Runs from the shared universal jar. |
 
 ## 📦 Installation
 
@@ -156,6 +156,8 @@ On Windows:
 
 Artifacts are written to `build/libs/`.
 
+The default build produces a single jar compiled from the shared `1.21.8` compatibility baseline and intended to run across `1.21.8` through `1.21.11`.
+
 ## 🧪 Local Test Clients
 
 Windows helper scripts are included for all supported versions:
@@ -183,8 +185,7 @@ And a startup verification helper:
 
 - `src/main/` contains the mod entrypoint, threat sound registration, and shared math.
 - `src/client/` contains config, HUD rendering, threat detection, commands, and settings UI.
-- `src/clientLegacy/` contains the `1.21.8` screen wrapper.
-- `src/clientModern/` contains the `1.21.9+` screen wrapper.
+- `src/client/` also contains the runtime compatibility layer used by the universal jar.
 - `scripts/` contains local build and client-launch helpers.
 
 ## ⚖️ License

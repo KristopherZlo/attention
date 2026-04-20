@@ -18,10 +18,15 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.util.Identifier;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import org.lwjgl.glfw.GLFW;
 
 public final class AttentionClient implements ClientModInitializer {
 	private static final Identifier MARKER_LAYER = Identifier.of("attention", "crosshair_marker");
+	private static final Identifier SETTINGS_CATEGORY_ID = Identifier.of("attention", "settings");
+	private static final String SETTINGS_CATEGORY_TRANSLATION_KEY = "key.categories.attention";
+	private static final String OPEN_SETTINGS_KEY_TRANSLATION_KEY = "key.attention.open_settings";
 	private static final AttentionConfigManager CONFIG_MANAGER = new AttentionConfigManager();
 	private static final AttentionMarkerController MARKER_CONTROLLER = new AttentionMarkerController();
 	private static final AttentionMarkerRenderer MARKER_RENDERER = new AttentionMarkerRenderer(MARKER_CONTROLLER.getState());
@@ -79,26 +84,45 @@ public final class AttentionClient implements ClientModInitializer {
 	}
 
 	private static KeyBinding createOpenSettingsKeyBinding() {
-		try {
-			Class<?> categoryClass = Class.forName("net.minecraft.client.option.KeyBinding$Category");
-			Object category = categoryClass.getMethod("create", Identifier.class).invoke(null, Identifier.of("attention", "settings"));
-			return KeyBinding.class
-					.getConstructor(String.class, InputUtil.Type.class, int.class, categoryClass)
-					.newInstance("key.attention.open_settings", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, category);
-		} catch (ClassNotFoundException exception) {
-			return createLegacyOpenSettingsKeyBinding();
-		} catch (ReflectiveOperationException exception) {
-			throw new IllegalStateException("Failed to create settings key binding", exception);
+		for (Constructor<?> constructor : KeyBinding.class.getConstructors()) {
+			Class<?>[] parameterTypes = constructor.getParameterTypes();
+			if (!isCompatibleKeyBindingConstructor(parameterTypes)) {
+				continue;
+			}
+
+			try {
+				Object category = createKeyBindingCategory(parameterTypes[3]);
+				return (KeyBinding) constructor.newInstance(
+						OPEN_SETTINGS_KEY_TRANSLATION_KEY,
+						InputUtil.Type.KEYSYM,
+						GLFW.GLFW_KEY_UNKNOWN,
+						category
+				);
+			} catch (InstantiationException | IllegalAccessException | InvocationTargetException exception) {
+				throw new IllegalStateException("Failed to create settings key binding", exception);
+			}
 		}
+
+		throw new IllegalStateException("Unsupported KeyBinding constructor layout for this Minecraft runtime");
 	}
 
-	private static KeyBinding createLegacyOpenSettingsKeyBinding() {
+	private static boolean isCompatibleKeyBindingConstructor(Class<?>[] parameterTypes) {
+		return parameterTypes.length == 4
+				&& parameterTypes[0] == String.class
+				&& parameterTypes[1] == InputUtil.Type.class
+				&& parameterTypes[2] == Integer.TYPE;
+	}
+
+	private static Object createKeyBindingCategory(Class<?> categoryType) {
+		if (categoryType == String.class) {
+			return SETTINGS_CATEGORY_TRANSLATION_KEY;
+		}
+
 		try {
-			return KeyBinding.class
-					.getConstructor(String.class, InputUtil.Type.class, int.class, String.class)
-					.newInstance("key.attention.open_settings", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.attention");
-		} catch (ReflectiveOperationException exception) {
-			throw new IllegalStateException("Failed to create legacy settings key binding", exception);
+			Constructor<?> categoryConstructor = categoryType.getConstructor(Identifier.class);
+			return categoryConstructor.newInstance(SETTINGS_CATEGORY_ID);
+		} catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException exception) {
+			throw new IllegalStateException("Failed to create modern settings key binding category", exception);
 		}
 	}
 }
